@@ -6,7 +6,7 @@
 # License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 # Funded by American University Mellon Grant
 
-from flask import Flask, render_template, request, url_for, make_response
+from flask import Flask, render_template, request, url_for, make_response, Response
 import datetime, json, string, tempfile, subprocess, os
 
 app = Flask(__name__)
@@ -40,6 +40,23 @@ def docs():
 def source():
     """ render the links-to-source page """
     return render_template('source.html')
+
+####################################################################################################
+# a download page 
+
+@app.route('/download-tsv/', methods=['POST'])
+def download_tsv():
+    try:
+        tsv = request.form['model_result'].strip()
+        return Response(
+            tsv,
+            mimetype="text/tab-separated-values",
+            headers={"Content-disposition":
+                    "attachment; filename=model_result.tsv"})
+    except:
+        response = make_response(error_report(
+                "Something odd happened."))
+        return response
 
 ####################################################################################################
 # the main / model entry page
