@@ -1,0 +1,65 @@
+{% extends "basic_template.html" %}
+{% block title %}
+{{ super() }}
+{% endblock %}
+{% block head %}
+{{ super() }}
+<script>
+  function toggle(source) {
+    var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+    for (var i = 0; i < checkboxes.length; i++) {
+      if (checkboxes[i] != source)
+        checkboxes[i].checked = source.checked;
+    }
+  }
+</script>
+{% endblock %}
+{% block content %}
+
+<h1>Model Options</h1>
+
+<center>
+  <div class="w3-container w3-margin w3-left-align" style="width:80%">
+    <form class="w3-container" method="post" action="/compute/">
+      <div class="w3-row-padding">
+	<table class="w3-table-all w3-margin w3-hoverable">
+	  <tr class="w3-us-blue">
+	    <th>Variable</th>
+	    <th>Continuous</th>
+	    <th>K/O</th>
+	  </tr>
+	  {% for variable in variables %}
+	  <tr>
+            <td>{{ variable }}</td>
+	    <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"></td>
+	    <td>
+	      <select name="{{variable}}-KO">
+		<option selected value="None"></option>
+		<option value="0">0</option>
+		<option value="1">1</option>
+		<option value="2">2</option>
+	      </select>
+	    </td>
+	  </tr>
+	  {% endfor %}
+	  <tr>
+            <td></td>
+	    <td><input type="checkbox" onClick="toggle(this)">Toggle All</td>
+	    <td></td>
+	  </tr>
+	</table>
+
+	<div class="w3-container w3-us-blue w3-border-large w3-center">
+	  <input type="radio" class="w3-radio w3-margin" name="action" value="cycles" checked><label for="cycles">Sample fixed points and cycles</label>
+	  <input type="radio" class="w3-radio w3-margin" name="action" value="fixed_points"><label for="fixed_points">Find all fixed points</label>
+	</div>
+	
+	<input class="w3-btn w3-us-red w3-margin" type="submit">
+      </div>
+    </form>
+  </div>
+</center>
+
+
+
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "basic_template.html" %}
+{% block title %}
+{{ super() }}
+{% endblock %}
+{% block head %}
+{{ super() }}
+{% endblock %}
+{% block content %}
+
+<h1>Model Entry</h1>
+
+<form class="w3-container" method="post" action="/options/">
+  <div class="w3-border-large w3-margin">
+    <textarea class="w3-input" name="model" autocomplete="off" rows="{{ rows }}" autofocus placeholder="The model goes here">{% if model_text %}{{ model_text }}{% endif %}</textarea>
+    <input class="w3-btn w3-us-red w3-margin" type="submit">
+  </div>
+</form>
+
+{% endblock %}

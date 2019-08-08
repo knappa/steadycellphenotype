@@ -1,0 +1,45 @@
+{% extends "basic_template.html" %}
+{% block title %}
+{{ super() }}
+{% endblock %}
+{% block head %}
+{{ super() }}
+{% endblock %}
+{% block content %}
+
+<h1>Results</h1>
+
+
+<div class="w3-row-padding">
+  
+  {% for cycle in cycles %}     
+  <div class="w3-container w3-margin w3-border-large">
+    <header class="w3-container w3-us-blue">
+      <h3>Length {{ cycle['length'] }}</h3>
+    </header>
+    <div style="overflow-x: auto">
+      <table class="w3-table-all w3-hoverable" >
+	<tr class="w3-us-blue">
+	  {% for key in cycle['cycle'][0] %}
+	  <th>{{ key }}</th>
+	  {% endfor %}
+	</tr>
+	{% for state in cycle['cycle'] %}
+	<tr>
+	  {% for key in state %}
+	  <td>{{ state[key] }}</td>
+	  {% endfor %}
+	</tr>
+	{% endfor %}
+      </table>
+    </div>
+    <footer class="w3-container w3-us-red">
+      <div class="w3-half w3-center"> {{ cycle['percent'] }}%</div>
+      <div class="w3-half w3-center">Count {{ cycle['count'] }}</div>
+    </footer>
+  </div>
+  {% endfor %}
+
+</div>
+
+{% endblock %}
