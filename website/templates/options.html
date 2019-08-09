@@ -25,7 +25,7 @@
 	<table class="w3-table-all w3-margin w3-hoverable">
 	  <tr class="w3-us-blue">
 	    <th>Variable</th>
-	    <th>Continuous</th>
+	    <th><input type="checkbox" onClick="toggle(this)"> Continuous</th>
 	    <th>K/O</th>
 	  </tr>
 	  {% for variable in variables %}
@@ -42,11 +42,6 @@
 	    </td>
 	  </tr>
 	  {% endfor %}
-	  <tr>
-            <td></td>
-	    <td><input type="checkbox" onClick="toggle(this)">Toggle All</td>
-	    <td></td>
-	  </tr>
 	</table>
 
 	<div class="w3-container w3-us-blue w3-border-large w3-center">
