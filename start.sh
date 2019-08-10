@@ -8,3 +8,7 @@ export FLASK_APP=steady_cell_phenotype
 
 # only on localhost
 flask run
+
+# the "proper way" for deployment
+# pip3 install waitress
+# waitress-serve --call 'steady_cell_phenotype:create_app'
