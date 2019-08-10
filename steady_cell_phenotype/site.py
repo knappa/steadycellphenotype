@@ -6,40 +6,52 @@
 # License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 # Funded by American University Mellon Grant
 
-from flask import Flask, render_template, request, url_for, make_response, Response
-import datetime, json, string, tempfile, subprocess, os
+import datetime
+import json
+import os
+import string
+import subprocess
+import tempfile
+
+from flask import Flask, render_template, request, make_response, Response
 
 app = Flask(__name__)
 
 # added to assist when developing, should be removed in production
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
+
 ####################################################################################################
 # some _effectively_ static pages, which share a basic template
 
 @app.errorhandler(404)
-def page_not_found(error):
+def page_not_found():
     return render_template('page_not_found.html'), 404
+
 
 @app.route('/about/')
 def about():
     """ render the about page """
     return render_template('about.html')
 
+
 @app.route('/quickstart/')
 def quickstart():
     """ render the quick start page """
     return render_template('quickstart.html')
+
 
 @app.route('/docs/')
 def docs():
     """ render the documentation page """
     return render_template('docs.html')
 
+
 @app.route('/source/')
 def source():
     """ render the links-to-source page """
     return render_template('source.html')
+
 
 ####################################################################################################
 # a download page 
@@ -52,11 +64,12 @@ def download_tsv():
             tsv,
             mimetype="text/tab-separated-values",
             headers={"Content-disposition":
-                    "attachment; filename=model_result.tsv"})
+                         'attachment; filename=model_result.tsv'})
     except:
         response = make_response(error_report(
-                "Something odd happened."))
+            "Something odd happened."))
         return response
+
 
 ####################################################################################################
 # the main / model entry page
@@ -69,9 +82,10 @@ def index():
         model_state = json.loads(model_state_cookie)
         model_text = model_state['model']
         model_lines = model_text.count('\n')
-        return render_template('index.html',model_text=model_state['model'], rows=max(10,model_lines+2))
+        return render_template('index.html', model_text=model_state['model'], rows=max(10, model_lines + 2))
     else:
         return render_template('index.html', rows=10)
+
 
 ####################################################################################################
 # the main computational page
@@ -79,7 +93,7 @@ def index():
 @app.route('/compute/', methods=['POST'])
 def compute():
     """ render the results of computation page """
-    
+
     # load existing state cookie, if it exists and makes sense 
     model_state_cookie = request.cookies.get('state')
     if model_state_cookie is not None and model_state_cookie != '':
@@ -112,18 +126,17 @@ def compute():
         response = make_response(error_report(str(e)))
         return response_set_model_cookie(response, model_state)
 
-    
     # decide which variables the user specified as continuous
-    continuous = { variable.strip(): True if '{}-continuous'.format(variable) in request.form else False
-                  for variable in variables }
+    continuous = {variable.strip(): True if '{}-continuous'.format(variable) in request.form else False
+                  for variable in variables}
 
     # create knockout model i.e. set certain values to constants without deleting the formulae
-    knockouts = { variable.strip(): request.form['{}-KO'.format(variable)]
+    knockouts = {variable.strip(): request.form['{}-KO'.format(variable)]
                  for variable in variables
-                 if request.form['{}-KO'.format(variable)] != 'None' }
+                 if request.form['{}-KO'.format(variable)] != 'None'}
 
     knockout_model = ""
-    for variable, rhs in zip(variables,right_sides):
+    for variable, rhs in zip(variables, right_sides):
         if variable in knockouts:
             knockout_model += "{v} = {r}\n".format(v=variable, r=knockouts[variable])
         else:
@@ -132,7 +145,7 @@ def compute():
     # Oh, this seems so very ugly
     # TODO: better integrating, thinking more about security
     with tempfile.TemporaryDirectory() as tmpdirname:
-        with open(tmpdirname+'/model.txt','w') as model_file:
+        with open(tmpdirname + '/model.txt', 'w') as model_file:
             model_file.write(knockout_model)
             model_file.write('\n')
 
@@ -142,11 +155,11 @@ def compute():
         else:
             continuity_params = ['-c']
         convert_to_c_process = \
-          subprocess.run([os.getcwd()+'/convert.py', '-n', '-sim',
-                          '--count', '10000', # only 10K runs, I don't want to overload the server
-                          '-i', tmpdirname+'/model.txt',
-                          '-o', tmpdirname+'/model.c'] + continuity_params,
-                          capture_output=True)
+            subprocess.run([os.getcwd() + '/convert.py', '-n', '-sim',
+                            '--count', '10000',  # only 10K runs, I don't want to overload the server
+                            '-i', tmpdirname + '/model.txt',
+                            '-o', tmpdirname + '/model.c'] + continuity_params,
+                           capture_output=True)
         if convert_to_c_process.returncode != 0:
             response = make_response(error_report(
                 'Error running converter!\n{}\n{}'.format(convert_to_c_process.stdout,
@@ -154,13 +167,13 @@ def compute():
             return response_set_model_cookie(response, model_state)
 
         # copy the header files over
-        subprocess.run(['cp', os.getcwd()+'/mod3ops.h', tmpdirname])
-        subprocess.run(['cp', os.getcwd()+'/bloom-filter.h', tmpdirname])
-        subprocess.run(['cp', os.getcwd()+'/cycle-table.h', tmpdirname])
-        
+        subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmpdirname])
+        subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmpdirname])
+        subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmpdirname])
+
         compilation_process = \
-          subprocess.run(['gcc', '-O3', tmpdirname+'/model.c', '-o', tmpdirname+'/model'],
-                         capture_output=True)
+            subprocess.run(['gcc', '-O3', tmpdirname + '/model.c', '-o', tmpdirname + '/model'],
+                           capture_output=True)
         if compilation_process.returncode != 0:
             response = make_response(error_report(
                 'Error running compiler!\n{}\n{}'.format(compilation_process.stdout,
@@ -168,7 +181,7 @@ def compute():
             return response_set_model_cookie(response, model_state)
 
         simulation_process = \
-          subprocess.run([tmpdirname+'/model'], capture_output=True)
+            subprocess.run([tmpdirname + '/model'], capture_output=True)
         if simulation_process.returncode != 0:
             response = make_response(error_report(
                 'Error running simulator!\n{}\n{}'.format(simulation_process.stdout,
@@ -178,17 +191,18 @@ def compute():
         simulator_output = json.loads(simulation_process.stdout.decode())
 
     # somewhat redundant data in the two fields, combine them, indexed by id
-    combined_output = { cycle['id']: {'length':cycle['length'], 'count': cycle['count'], 'percent': cycle['percent']}
-                       for cycle in simulator_output['counts'] }
+    combined_output = {cycle['id']: {'length': cycle['length'], 'count': cycle['count'], 'percent': cycle['percent']}
+                       for cycle in simulator_output['counts']}
     for cycle in simulator_output['cycles']:
         combined_output[cycle['id']]['cycle'] = cycle['cycle']
 
     cycle_list = list(combined_output.values())
     cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
-    
+
     # respond with the results-of-computation page
     response = make_response(render_template('compute.html', cycles=cycle_list))
     return response_set_model_cookie(response, model_state)
+
 
 ####################################################################################################
 # model options page
@@ -213,7 +227,7 @@ def options():
     else:
         model_state = dict()
     model_state['model'] = model
-    
+
     try:
         # attempt to get the variable list
         variables, right_sides = get_model_variables(model)
@@ -221,16 +235,17 @@ def options():
         # respond with an error message if submission is ill-formed
         response = make_response(error_report(str(e)))
         return response_set_model_cookie(response, model_state)
-    
+
     # cleanup the model
     model = ""
-    for variable, rhs in zip(variables,right_sides):
+    for variable, rhs in zip(variables, right_sides):
         model += "{v} = {r}\n".format(v=variable, r=rhs)
     model_state['model'] = model
-    
+
     # respond with the options page
-    response = make_response(render_template('options.html',variables=variables))
+    response = make_response(render_template('options.html', variables=variables))
     return response_set_model_cookie(response, model_state)
+
 
 def get_model_variables(model):
     variables = []
@@ -258,13 +273,14 @@ def get_model_variables(model):
             raise Exception(zero_len_rhs_msg.format(lineno=lineno))
         right_sides.append(rhs)
     return variables, right_sides
-            
+
 
 def response_set_model_cookie(response, model_state):
     # set cookie expiration 90 days hence
     expire_date = datetime.datetime.now() + datetime.timedelta(days=90)
     response.set_cookie('state', json.dumps(model_state), expires=expire_date)
     return response
+
 
 def error_report(error_string):
     """ display error reports from invalid user input """

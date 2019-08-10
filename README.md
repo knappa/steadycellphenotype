@@ -29,16 +29,11 @@ pip3 install flask
 ```
 
 
-The site can then be started up by running `site.py` by
+Then, on mac or linux, the site can then be started by 
 ```
-python site.py
+./start.sh
 ```
-or
-```
-python3 site.py
-```
-
-This will open up a web server on the loopback address on port 5000. If that's gibberish, what I
+Assuming that you are in the top directory of this project. This will open up a web server on the loopback address on port 5000. If that's gibberish, what I
 mean is that
 * It won't be accessible to the broader internet and
 * On the same machine, you can point your web browser at
