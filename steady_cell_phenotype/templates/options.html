@@ -43,12 +43,23 @@
 	  </tr>
 	  {% endfor %}
 	</table>
-
-	<div class="w3-container w3-us-blue w3-border-large w3-center">
-	  <input type="radio" class="w3-radio w3-margin" name="action" value="cycles" checked><label for="cycles">Sample fixed points and cycles</label>
-	  <input type="radio" class="w3-radio w3-margin" name="action" value="fixed_points"><label for="fixed_points">Find all fixed points</label>
+	<div class="w3-cell-row w3-us-blue w3-margin">
+	  <div class="w3-container w3-cell w3-mobile">
+	    <div class="w3-container">
+	      <input type="radio" class="w3-radio w3-margin" name="action" value="cycles" checked>
+	      <label for="cycles">Sample fixed points and cycles <select name="num_samples">
+		<option selected value="1000">1000</option>
+		<option value="10000">10000</option>
+		<option value="100000">100000</option>
+		<option value="1000000">1000000</option>
+	      </select> times </label>
+	    </div>
+	  </div>
+	  <div class="w3-container w3-cell w3-mobile">
+	    <input type="radio" class="w3-radio w3-margin" name="action" value="fixed_points">
+	    <label for="fixed_points">Find all fixed points</label>
+	  </div>
 	</div>
-	
 	<input class="w3-btn w3-us-red w3-margin" type="submit">
       </div>
     </form>

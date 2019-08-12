@@ -147,6 +147,12 @@ def create_app(test_config=None):
             else:
                 knockout_model += "{v} = {r}\n".format(v=variable, r=rhs)
 
+        # get number of iterations for the simulation
+        try:
+            num_iterations = int(request.form['num_samples'])
+        except:
+            num_iterations = 0 # not going to waste any effort on garbage
+                
         # Oh, this seems so very ugly
         # TODO: better integrating, thinking more about security
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -161,7 +167,7 @@ def create_app(test_config=None):
                 continuity_params = ['-c']
             convert_to_c_process = \
                 subprocess.run([os.getcwd() + '/convert.py', '-n', '-sim',
-                                '--count', '10000',  # only 10K runs, I don't want to overload the server
+                                '--count', str(num_iterations), #'10000',  # only 10K runs, I don't want to overload the server
                                 '-i', tmpdirname + '/model.txt',
                                 '-o', tmpdirname + '/model.c'] + continuity_params,
                                capture_output=True)
