@@ -160,6 +160,10 @@ def create_app(test_config=None):
                 model_file.write(knockout_model)
                 model_file.write('\n')
 
+            def error_msg_parse(msg):
+                import html
+                return html.escape(msg.decode()).replace('\n','<br>').replace(' ','&nbsp')
+                
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
                 continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
@@ -173,8 +177,8 @@ def create_app(test_config=None):
                                capture_output=True)
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running converter!\n{}\n{}'.format(convert_to_c_process.stdout.decode(),
-                                                              convert_to_c_process.stderr.decode())))
+                    'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_c_process.stdout),
+                                                              error_msg_parse(convert_to_c_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             # copy the header files over
@@ -187,16 +191,16 @@ def create_app(test_config=None):
                                capture_output=True)
             if compilation_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running compiler!\n{}\n{}'.format(compilation_process.stdout,
-                                                             compilation_process.stderr)))
+                    'Error running compiler!\n{}\n{}'.format(compilation_process.stdout.decode(),
+                                                             compilation_process.stderr.decode())))
                 return response_set_model_cookie(response, model_state)
 
             simulation_process = \
                 subprocess.run([tmpdirname + '/model'], capture_output=True)
             if simulation_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running simulator!\n{}\n{}'.format(simulation_process.stdout,
-                                                              simulation_process.stderr)))
+                    'Error running simulator!\n{}\n{}'.format(simulation_process.stdout.decode(),
+                                                              simulation_process.stderr.decode())))
                 return response_set_model_cookie(response, model_state)
 
             simulator_output = json.loads(simulation_process.stdout.decode())

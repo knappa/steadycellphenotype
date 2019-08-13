@@ -477,7 +477,7 @@ def get_continuous_per_formula(var, formula):
     accumulator = Mod3Poly.zero()
     for base_value in range(3):
         evaluated_poly = formula.eval({var: base_value})
-        if evaluated_poly.is_constant():
+        if type(evaluated_poly) == int or evaluated_poly.is_constant():
             computed_value = int(evaluated_poly)
             continuous_value = h(base_value, computed_value)
             accumulator += continuous_value*(1 - (Monomial.as_var(var) - base_value) ** 2)
