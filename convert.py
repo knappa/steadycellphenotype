@@ -400,14 +400,19 @@ def evaluate(pair, mapping_dict):
 def self_compose(base_formulae, power):
     # every variable maps to itself in the identity map. i.e. zero-th power 
     formulae = {variable_name: Monomial.as_var(variable_name) for variable_name, _ in base_formulae}
-    # start mapping via eval
-    pool = Pool(4)
-    for _ in range(power):
-        # set up the dict which defines the mapping
-        mapping_dict = {variable_name: formula for variable_name, formula in formulae.items()}
-        evaluator = functools.partial(evaluate, mapping_dict=mapping_dict)
-        formulae = dict(pool.map(evaluator, base_formulae))
-        # formulae = { variable_name: function.eval(mapping_dict) for variable_name, function in base_formulae }
+    # NOTE: it seems that Pool is not available on AWS or on Android (I want to run this on my tablet)
+    try:
+        # start mapping via eval
+        pool = Pool(4)
+        for _ in range(power):
+            # set up the dict which defines the mapping
+            mapping_dict = {variable_name: formula for variable_name, formula in formulae.items()}
+            evaluator = functools.partial(evaluate, mapping_dict=mapping_dict)
+            formulae = dict(pool.map(evaluator, base_formulae))            
+    except ImportError:
+        formulae = { variable_name: function.eval(mapping_dict)
+                     for variable_name, function in base_formulae }
+        
     return [(variable_name, formulae[variable_name]) for variable_name, _ in base_formulae]
 
 
@@ -440,11 +445,13 @@ def get_continuous_formulae(base_formulae, omitted_vars):
     """convert formulae to continuous versions"""
     # the formula for variable "var" is made continuous, first in "var", then recursively in the
     # other variables in the formula
-    pool = Pool(8)
-    base_formulae_with_omitted_vars = [(var,formula, omitted_vars) for var, formula in base_formulae]
-    continuous_versions = list(pool.map(unpacker, base_formulae_with_omitted_vars))
-    return continuous_versions
-    # return [ get_continuous_per_formula(var, formula) for var, formula in base_formulae ]
+    try:
+        pool = Pool(8)
+        base_formulae_with_omitted_vars = [(var,formula, omitted_vars) for var, formula in base_formulae]
+        continuous_versions = list(pool.map(unpacker, base_formulae_with_omitted_vars))
+        return continuous_versions
+    except ImportError:
+        return [ get_continuous_per_formula(var, formula) for var, formula in base_formulae ]
 
 
 def unpacker(three_tuple):
