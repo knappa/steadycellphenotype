@@ -151,7 +151,7 @@ def create_app(test_config=None):
         try:
             num_iterations = int(request.form['num_samples'])
         except:
-            num_iterations = 0 # not going to waste any effort on garbage
+            num_iterations = 0  # not going to waste any effort on garbage
 
         # decide which type of computation to run
         if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points']:
@@ -160,7 +160,7 @@ def create_app(test_config=None):
             return response_set_model_cookie(response, model_state)
         elif request.form['action'] == 'cycles':
             return compute_cycles(model_state, knockout_model, variables, continuous, num_iterations)
-        else: # request.form['action'] == 'fixed_points'
+        else:  # request.form['action'] == 'fixed_points'
             return compute_fixed_points(model_state, knockout_model, variables, continuous)
 
     def compute_fixed_points(model_state, knockout_model, variables, continuous):
@@ -178,10 +178,10 @@ def create_app(test_config=None):
             with open(tmpdirname + '/model.txt', 'w') as model_file:
                 model_file.write(knockout_model)
                 model_file.write('\n')
-        
+
             def error_msg_parse(msg):
                 import html
-                return html.escape(msg.decode()).replace('\n','<br>').replace(' ','&nbsp')
+                return html.escape(msg.decode()).replace('\n', '<br>').replace(' ', '&nbsp')
 
             # convert the model to polynomials
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
@@ -189,9 +189,9 @@ def create_app(test_config=None):
                 continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
             else:
                 continuity_params = ['-c']
-                
+
             convert_to_poly_process = \
-                subprocess.run([os.getcwd() + '/convert.py', # '-n', 
+                subprocess.run([os.getcwd() + '/convert.py',  # '-n',
                                 '-i', tmpdirname + '/model.txt',
                                 '-o', tmpdirname + '/model-polys.txt'] + continuity_params,
                                capture_output=True)
@@ -202,17 +202,17 @@ def create_app(test_config=None):
                 return response_set_model_cookie(response, model_state)
 
             with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
-                open(tmpdirname + '/find_steady_states.m2', 'w') as macaulay_script:
+                    open(tmpdirname + '/find_steady_states.m2', 'w') as macaulay_script:
                 macaulay_script.write(template.read().format(
-                                                             polynomial_file=tmpdirname + '/model-polys.txt',
-                                                             output_file=tmpdirname + '/results.txt'))
+                    polynomial_file=tmpdirname + '/model-polys.txt',
+                    output_file=tmpdirname + '/results.txt'))
 
             # TODO: put a limit on the amount of time this can run
             find_steady_states_process = \
-                subprocess.run([macaulay_executable, 
+                subprocess.run([macaulay_executable,
                                 '--script',
                                 tmpdirname + '/find_steady_states.m2'],
-                                capture_output=True)
+                               capture_output=True)
             if find_steady_states_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running Macaulay!\n{}\n{}'.format(error_msg_parse(find_steady_states_process.stdout),
@@ -221,33 +221,34 @@ def create_app(test_config=None):
 
             def process_line(line):
                 line = line.strip()
-                if len(line) < 2: # should at least have {}
+                if len(line) < 2:  # should at least have {}
                     return None
                 elif '{' is not line[0] or '}' is not line[-1]:
                     raise Error("Malformed response from Macaulay")
 
-                line = line[1:-1] # strip the {}'s
+                line = line[1:-1]  # strip the {}'s
                 try:
                     results = map(int, line.split(','))
                 except:
                     raise Error("Malformed response from Macaulay")
 
                 # make sure they are in 0,1,2
-                results = map( lambda n: (n+3)%3, results)
-                
+                results = map(lambda n: (n + 3) % 3, results)
+
                 return tuple(results)
 
             try:
                 with open(tmpdirname + '/results.txt', 'r') as file:
-                    fixed_points = [ process_line(line) for line in file ]
+                    fixed_points = [process_line(line) for line in file]
             except:
-                response = make_response(error_report('Malformed response from Macaulay!'))                
+                response = make_response(error_report('Malformed response from Macaulay!'))
                 return response_set_model_cookie(response, model_state)
-            
+
         # respond with the results-of-computation page
-        response = make_response(render_template('compute-fixed-points.html', variables=variables, fixed_points=fixed_points))
+        response = make_response(
+            render_template('compute-fixed-points.html', variables=variables, fixed_points=fixed_points))
         return response_set_model_cookie(response, model_state)
-        
+
     def compute_cycles(model_state, knockout_model, variables, continuous, num_iterations):
         """ Run the cycle finding simulation """
         # Oh, this seems so very ugly
@@ -259,8 +260,8 @@ def create_app(test_config=None):
 
             def error_msg_parse(msg):
                 import html
-                return html.escape(msg.decode()).replace('\n','<br>').replace(' ','&nbsp')
-                
+                return html.escape(msg.decode()).replace('\n', '<br>').replace(' ', '&nbsp')
+
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
                 continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
@@ -268,7 +269,8 @@ def create_app(test_config=None):
                 continuity_params = ['-c']
             convert_to_c_process = \
                 subprocess.run([os.getcwd() + '/convert.py', '-n', '-sim',
-                                '--count', str(num_iterations), #'10000',  # only 10K runs, I don't want to overload the server
+                                '--count', str(num_iterations),
+                                # '10000',  # only 10K runs, I don't want to overload the server
                                 '-i', tmpdirname + '/model.txt',
                                 '-o', tmpdirname + '/model.c'] + continuity_params,
                                capture_output=True)
