@@ -10,10 +10,10 @@ is worth putting it on github.
 There is still plenty to do here.
 
 partial TODO list: 
-* macauly integration
-* quickstart
 * documentation
 * docker stuff
+* about the authors needs some details
+* maybe remove my email address and use github issue page for communications?
 
 ## Current operation
 
@@ -39,6 +39,10 @@ mean is that
 * On the same machine, you can point your web browser at
   [http://localhost:5000](http://localhost:5000) and access the site.
 
-
 The flask documentation contains info on how to get the thing working for remote users.  [Flask
 documentation](https://flask.palletsprojects.com/en/1.1.x/)
+
+## Notes:
+
+[Here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can
+get Debian packages for Macaulay2. 
