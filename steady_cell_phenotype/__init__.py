@@ -152,7 +152,104 @@ def create_app(test_config=None):
             num_iterations = int(request.form['num_samples'])
         except:
             num_iterations = 0 # not going to waste any effort on garbage
+
+        # decide which type of computation to run
+        if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points']:
+            response = make_response(error_report(
+                'The request was ill-formed, please go back to the main page and try again'))
+            return response_set_model_cookie(response, model_state)
+        elif request.form['action'] == 'cycles':
+            return compute_cycles(model_state, knockout_model, variables, continuous, num_iterations)
+        else: # request.form['action'] == 'fixed_points'
+            return compute_fixed_points(model_state, knockout_model, variables, continuous)
+
+    def compute_fixed_points(model_state, knockout_model, variables, continuous):
+        """ Run the fixed-point finding computation """
+
+        # check to make sure that we have macaulay installed
+        import shutil
+        macaulay_executable = shutil.which('M2')
+        if macaulay_executable is None:
+            response = make_response(error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
+            return response_set_model_cookie(response, model_state)
+
+        # we are set to do the computation
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            with open(tmpdirname + '/model.txt', 'w') as model_file:
+                model_file.write(knockout_model)
+                model_file.write('\n')
+        
+            def error_msg_parse(msg):
+                import html
+                return html.escape(msg.decode()).replace('\n','<br>').replace(' ','&nbsp')
+
+            # convert the model to polynomials
+            non_continuous_vars = [variable for variable in variables if not continuous[variable]]
+            if len(non_continuous_vars) > 0:
+                continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
+            else:
+                continuity_params = ['-c']
                 
+            convert_to_poly_process = \
+                subprocess.run([os.getcwd() + '/convert.py', # '-n', 
+                                '-i', tmpdirname + '/model.txt',
+                                '-o', tmpdirname + '/model-polys.txt'] + continuity_params,
+                               capture_output=True)
+            if convert_to_poly_process.returncode != 0:
+                response = make_response(error_report(
+                    'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_poly_process.stdout),
+                                                              error_msg_parse(convert_to_poly_process.stderr))))
+                return response_set_model_cookie(response, model_state)
+
+            with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
+                open(tmpdirname + '/find_steady_states.m2', 'w') as macaulay_script:
+                macaulay_script.write(template.read().format(
+                                                             polynomial_file=tmpdirname + '/model-polys.txt',
+                                                             output_file=tmpdirname + '/results.txt'))
+
+            # TODO: put a limit on the amount of time this can run
+            find_steady_states_process = \
+                subprocess.run([macaulay_executable, 
+                                '--script',
+                                tmpdirname + '/find_steady_states.m2'],
+                                capture_output=True)
+            if find_steady_states_process.returncode != 0:
+                response = make_response(error_report(
+                    'Error running Macaulay!\n{}\n{}'.format(error_msg_parse(find_steady_states_process.stdout),
+                                                             error_msg_parse(find_steady_states_process.stderr))))
+                return response_set_model_cookie(response, model_state)
+
+            def process_line(line):
+                line = line.strip()
+                if len(line) < 2: # should at least have {}
+                    return None
+                elif '{' is not line[0] or '}' is not line[-1]:
+                    raise Error("Malformed response from Macaulay")
+
+                line = line[1:-1] # strip the {}'s
+                try:
+                    results = map(int, line.split(','))
+                except:
+                    raise Error("Malformed response from Macaulay")
+
+                # make sure they are in 0,1,2
+                results = map( lambda n: (n+3)%3, results)
+                
+                return tuple(results)
+
+            try:
+                with open(tmpdirname + '/results.txt', 'r') as file:
+                    fixed_points = [ process_line(line) for line in file ]
+            except:
+                response = make_response(error_report('Malformed response from Macaulay!'))                
+                return response_set_model_cookie(response, model_state)
+            
+        # respond with the results-of-computation page
+        response = make_response(render_template('compute-fixed-points.html', variables=variables, fixed_points=fixed_points))
+        return response_set_model_cookie(response, model_state)
+        
+    def compute_cycles(model_state, knockout_model, variables, continuous, num_iterations):
+        """ Run the cycle finding simulation """
         # Oh, this seems so very ugly
         # TODO: better integrating, thinking more about security
         with tempfile.TemporaryDirectory() as tmpdirname:
@@ -186,6 +283,7 @@ def create_app(test_config=None):
             subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmpdirname])
             subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmpdirname])
 
+            # TODO: be fancy about compiler selection, using shutil.which
             compilation_process = \
                 subprocess.run(['gcc', '-O3', tmpdirname + '/model.c', '-o', tmpdirname + '/model'],
                                capture_output=True)
@@ -216,7 +314,7 @@ def create_app(test_config=None):
         cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
 
         # respond with the results-of-computation page
-        response = make_response(render_template('compute.html', cycles=cycle_list))
+        response = make_response(render_template('compute-cycles.html', cycles=cycle_list))
         return response_set_model_cookie(response, model_state)
 
     ####################################################################################################

@@ -1,0 +1,44 @@
+polys="{polynomial_file}";
+results="{output_file}"<<"";
+
+--Number of nodes
+n=#(lines get polys);
+
+--Size of field
+p=3;
+--Variables will be indexed at 0
+X=apply(n,i->"x"|i);
+
+DEN = apply(n,i->"x"|i|"-x"|i|"^"|p);
+
+R = ZZ/p[X/value]/ideal(DEN/value);
+
+X=X/value;
+
+load polys;
+F=apply(n,i->"f"|i);
+F=apply(F,i->value(i));
+
+I=ideal(F-X);
+
+generat=gens gb I;
+--results<< "The generators for a Groebner basis for the ideal F-X are: "<<endl<<endl<<generat;
+loadPackage "RationalPoints"
+U=ZZ/3[X]
+
+T=substitute(I,U);
+
+
+--Compute steady states
+steadstates=rationalPoints T
+for point in steadstates do(results<<point<<endl);
+
+results<<close;
+
+
+
+
+quit
+
+
+

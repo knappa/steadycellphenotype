@@ -15,10 +15,10 @@
   {% for cycle in cycles %}     
   <div class="w3-container w3-margin w3-border-large">
     <header class="w3-container w3-us-blue">
-      <h3>Length {{ cycle['length'] }}</h3>
+      <h3>{% if cycle['length'] == 1 %}Fixed Point{% else %}Length {{ cycle['length'] }} Cycle{% endif %}</h3>
     </header>
     <div style="overflow-x: auto">
-      <table class="w3-table-all w3-hoverable" >
+      <table class="w3-table-all w3-centered  w3-hoverable" >
 	<tr class="w3-us-blue">
 	  {% for key in cycle['cycle'][0] %}
 	  <th>{{ key }}</th>
