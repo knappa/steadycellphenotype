@@ -14,7 +14,7 @@ import subprocess
 import tempfile
 
 from flask import Flask, render_template, request, make_response, Response
-
+from werkzeug.utils import secure_filename
 
 def create_app(test_config=None):
     # create and configure the app
@@ -22,8 +22,10 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         SECRET_KEY='dev',
+        MAX_CONTENT_LENGTH = 512 * 1024, # maximum upload size: 512 kilobytes
+        UPLOAD_FOLDER=tempfile.TemporaryDirectory(), # TODO: does this make sense??? doesn't work without it
         # added to assist when developing, should be removed in production
-        TEMPLATES_AUTO_RELOAD=True
+        TEMPLATES_AUTO_RELOAD=True,
         )
 
     if test_config is None:
@@ -32,7 +34,7 @@ def create_app(test_config=None):
     else:
         # load the test config if passed in
         app.config.from_mapping(test_config)
-
+        
     ####################################################################################################
     # some _effectively_ static pages, which share a basic template
 
@@ -325,9 +327,18 @@ def create_app(test_config=None):
     @app.route('/options/', methods=['POST'])
     def options():
         """ model options page """
-
         # get submitted model from form
         model = request.form['model'].strip()
+
+        # overwrite with model file, if present
+        if 'model-file' in request.files:
+            model_file = request.files['model-file']
+            if model_file.filename != '':
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    filename = tmpdirname + '/' + secure_filename(model_file.filename)
+                    model_file.save(filename)
+                    with open(filename, 'r') as file:
+                        model = file.read().strip()
 
         # load existing state cookie, if it exists, and update model
         model_state_cookie = request.cookies.get('state')

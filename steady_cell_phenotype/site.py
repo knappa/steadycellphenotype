@@ -93,7 +93,6 @@ def index():
 @app.route('/compute/', methods=['POST'])
 def compute():
     """ render the results of computation page """
-
     # load existing state cookie, if it exists and makes sense 
     model_state_cookie = request.cookies.get('state')
     if model_state_cookie is not None and model_state_cookie != '':
@@ -102,18 +101,21 @@ def compute():
         except:
             response = make_response(error_report(
                 "For some reason, we could not parse the cookie for this site. " +
-                "We just tried to clear it, but if the error persists clear the cookie and try again."))
+                "We just tried to clear it, but if the error persists clear " + \
+                "the cookie and try again."))
             return response_set_model_cookie(response, dict())
     else:
         # respond with an error message if submission is ill-formed
         response = make_response(error_report(
-            'We couldn\'t find the cookie which contains your model, please go back to the main page and try again'))
+            'We couldn\'t find the cookie which contains your model, ' + \
+            'please go back to the main page and try again'))
         return response_set_model_cookie(response, dict())
 
     # respond with an error message if submission is ill-formed
     if 'model' not in model_state:
         response = make_response(error_report(
-            'The cookie which contains your model is ill-formed, please go back to the main page and try again'))
+            'The cookie which contains your model is ill-formed, ' + \
+            'please go back to the main page and try again'))
         return response_set_model_cookie(response, dict())
 
     # get the variable list and right hand sides
@@ -127,7 +129,8 @@ def compute():
         return response_set_model_cookie(response, model_state)
 
     # decide which variables the user specified as continuous
-    continuous = {variable.strip(): True if '{}-continuous'.format(variable) in request.form else False
+    continuous = {variable.strip(): True
+                  if '{}-continuous'.format(variable) in request.form else False
                   for variable in variables}
 
     # create knockout model i.e. set certain values to constants without deleting the formulae
@@ -149,9 +152,13 @@ def compute():
             model_file.write(knockout_model)
             model_file.write('\n')
 
-        non_continuous_vars = [variable for variable in variables if not continuous[variable]]
+        non_continuous_vars = [variable
+                               for variable in variables
+                               if not continuous[variable]]
         if len(non_continuous_vars) > 0:
-            continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
+            continuity_params = ['-c', '-comit'] + [ variable
+                                                     for variable in variables
+                                                     if not continuous[variable] ]
         else:
             continuity_params = ['-c']
         convert_to_c_process = \
@@ -172,7 +179,8 @@ def compute():
         subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmpdirname])
 
         compilation_process = \
-            subprocess.run(['gcc', '-O3', tmpdirname + '/model.c', '-o', tmpdirname + '/model'],
+            subprocess.run(['gcc', '-O3', tmpdirname + '/model.c',
+                            '-o', tmpdirname + '/model'],
                            capture_output=True)
         if compilation_process.returncode != 0:
             response = make_response(error_report(
@@ -191,7 +199,9 @@ def compute():
         simulator_output = json.loads(simulation_process.stdout.decode())
 
     # somewhat redundant data in the two fields, combine them, indexed by id
-    combined_output = {cycle['id']: {'length': cycle['length'], 'count': cycle['count'], 'percent': cycle['percent']}
+    combined_output = {cycle['id']: {'length': cycle['length'],
+                                     'count': cycle['count'],
+                                     'percent': cycle['percent']}
                        for cycle in simulator_output['counts']}
     for cycle in simulator_output['cycles']:
         combined_output[cycle['id']]['cycle'] = cycle['cycle']
@@ -222,7 +232,8 @@ def options():
         except:
             response = make_response(error_report(
                 "For some reason, we could not parse the cookie for this site. " +
-                "We just tried to clear it, but if the error persists clear the cookie and try again."))
+                "We just tried to clear it, but if the error persists " + \
+                "clear the cookie and try again."))
             return response_set_model_cookie(response, dict())
     else:
         model_state = dict()
