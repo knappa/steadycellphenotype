@@ -10,11 +10,20 @@
 <h1>Model Entry</h1>
 
 <form class="w3-container" method="post" action="/options/" enctype="multipart/form-data">
-  <div class="w3-border-large w3-margin">
-    <textarea class="w3-input" name="model" autocomplete="off" rows="{{ rows }}" autofocus placeholder="The model goes here">{% if model_text %}{{ model_text }}{% endif %}</textarea>
-    <label class="w3-us-red" for="model-file">Select a file</label>
-    <input class="w3-btn w3-us-red" type="file" id="model-file" name="model-file" accept=".txt,text/plain">
-    <input class="w3-btn w3-us-red w3-margin" type="submit" value="Set Model Options">
+  <div class="w3-mobile">
+    <div class="w3-cell-row">
+      <div style="border:3px solid white" class="w3-container w3-cell">
+	<input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Set Model Options">
+      </div>
+      <div style="border:3px solid white" class="w3-container w3-round w3-hover-border-black w3-cell w3-mobile">
+	<label class="w3-btn w3-us-red w3-margin w3-pad w3-round" for="model-file">
+	  <input type="file" id="model-file" name="model-file" accept=".txt,text/plain">
+	</label>
+	<input class="w3-btn w3-us-red w3-margin w3-round" formaction="/" type="submit" value="Upload a File">
+      </div>
+    </div>
+
+    <textarea class="w3-input w3-border w3-round w3-border-black" name="model" autocomplete="off" rows="{{ rows }}" autofocus placeholder="The model goes here">{% if model_text %}{{ model_text }}{% endif %}</textarea>
   </div>
 </form>
 

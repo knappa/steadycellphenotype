@@ -82,15 +82,29 @@ def create_app(test_config=None):
     ####################################################################################################
     # the main / model entry page
 
-    @app.route('/')
+    @app.route('/', methods=['GET','POST'])
     def index():
         """ render the main page """
+
+        # get model file, if present
+        model_from_file = None
+        if request.method == 'POST' and 'model-file' in request.files:
+            model_file = request.files['model-file']
+            if model_file.filename != '':
+                with tempfile.TemporaryDirectory() as tmpdirname:
+                    filename = tmpdirname + '/' + secure_filename(model_file.filename)
+                    model_file.save(filename)
+                    with open(filename, 'r') as file:
+                        model_from_file = file.read().strip()
+        
         model_state_cookie = request.cookies.get('state')
         if model_state_cookie is not None and model_state_cookie != '':
             model_state = json.loads(model_state_cookie)
             model_text = model_state['model']
+            if model_from_file is not None:
+                model_text = model_from_file
             model_lines = model_text.count('\n')
-            return render_template('index.html', model_text=model_state['model'], rows=max(10, model_lines + 2))
+            return render_template('index.html', model_text=model_text, rows=max(10, model_lines + 2))
         else:
             return render_template('index.html', rows=10)
 
@@ -329,16 +343,6 @@ def create_app(test_config=None):
         """ model options page """
         # get submitted model from form
         model = request.form['model'].strip()
-
-        # overwrite with model file, if present
-        if 'model-file' in request.files:
-            model_file = request.files['model-file']
-            if model_file.filename != '':
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    filename = tmpdirname + '/' + secure_filename(model_file.filename)
-                    model_file.save(filename)
-                    with open(filename, 'r') as file:
-                        model = file.read().strip()
 
         # load existing state cookie, if it exists, and update model
         model_state_cookie = request.cookies.get('state')
