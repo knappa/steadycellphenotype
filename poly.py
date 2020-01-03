@@ -9,6 +9,7 @@ class Operation(Enum):
     EXP = 'EXP'
     MAX = 'MAX'
     MIN = 'MIN'
+    CONT = 'CONT'
     NOT = 'NOT'
 
 
@@ -69,12 +70,10 @@ class Expression(object):
 
 
 ####################################################################################################
-
+# actions on expressions, suitable for conversion to polynomial form. Not best for simulator.
+    
 def mod_3(n):
-    while n < 0:
-        n += 3
-    return n%3
-
+    return n % 3
 
 def not3(n):
     value = 2 + 2*n
@@ -83,14 +82,12 @@ def not3(n):
     else:
         return value
 
-
 def max3(a, b):
     value = a + b + 2*a*b + (a ** 2)*b + a*(b ** 2) + (a ** 2)*(b ** 2)
     if type(value) == int or value.is_constant():
         return mod_3(int(value))
     else:
         return value
-
 
 def min3(a, b):
     value = a*b + 2*(a ** 2)*b + 2*a*(b ** 2) + 2*(a ** 2)*(b ** 2)
@@ -99,6 +96,63 @@ def min3(a, b):
     else:
         return value
 
+
+def h(x, fx):
+    """helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24"""
+    if fx > x:
+        return x + 1
+    elif fx < x:
+        return x - 1
+    else:
+        return x
+    
+def cont3(ctrl_var, formula):
+    """convert the expression expr into one which is 'continuous' in the
+    control variable ctrl"""
+    # handle case where the control variable is a constant
+    if type(ctrl_var) == int or ctrl_var.is_constant():
+        ctrl_var = int(ctrl_var) % 3
+        if type(formula) == int or formula.is_constant():
+            formula = int(formula) % 3
+            return h(ctrl_var, formula)
+        else:
+            return cont3_helper(ctrl_var, formula)
+
+    # otherwise, the control variable must be just a variable
+    assert type(ctrl_var) == str or \
+      ( type(ctrl_var) == Monomial and len(ctrl_var.get_var_set()) == 1 )
+
+    # go through the whole buisness for the target variable first
+    accumulator = Mod3Poly.zero()
+    for base_value in range(3):
+        if not( type(formula) == int or formula.is_constant() ):
+            evaluated_poly = formula.eval({ctrl_var: base_value})
+        if type(evaluated_poly) == int or evaluated_poly.is_constant():
+            computed_value = int(evaluated_poly)
+            continuous_value = h(base_value, computed_value)
+            accumulator += continuous_value*(1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+        else:
+            accumulator += cont3_helper(base_value, evaluated_poly) * (1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+    return accumulator
+    
+def cont3_helper(base_var_val, formula):
+    """helper function for cont3, gets continuous version of the formula for variable var"""
+    # find some unevalued variable
+    var = tuple(formula.get_var_set())[0]
+
+    # iterate over the ways of setting that variable: 0, 1, 2
+    accumulator = Mod3Poly.zero()
+    for value in range(3):
+        evaluated_poly = formula.eval({var: value})
+        if type(evaluated_poly) == int or evaluated_poly.is_constant():
+            computed_value = int(evaluated_poly)
+            continuous_value = h(base_var_val, computed_value)
+            accumulator += continuous_value*(1 - (Monomial.as_var(var) - value) ** 2)
+        else:
+            accumulator += cont3_helper(base_var_val, evaluated_poly) * (1 - (Monomial.as_var(var) - value) ** 2)
+
+    return accumulator
+    
 
 ####################################################################################################
 
@@ -138,6 +192,15 @@ class Function(Expression):
                 return min(exprOne, exprTwo)
             else:
                 return Function('MIN', [exprOne, exprTwo])
+        elif self._function_name == 'CONT':
+            assert len(evaluated_expressions) == 2, "wrong number of arguments for CONT"
+            ctrl_var, expr = evaluated_expressions
+            if type(ctrl_var) == int and type(expr) == int:
+                ctrl_var = mod_3(ctrl_var)
+                expr = mod_3(expr)
+                return XXX
+            # cannot be computed directly, so return in function form
+            return Function('CONT', [ctrl_var, expr])
         elif self._function_name == 'NOT':
             assert len(evaluated_expressions) == 1, "wrong number of arguments for NOT"
             expr = evaluated_expressions[0]
@@ -165,6 +228,8 @@ class Function(Expression):
             func_name = 'mod3max'
         elif self._function_name == 'MIN':
             func_name = 'mod3min'
+        elif self._function_name == 'CONT':
+            func_name = 'mod3continuity'
         elif self._function_name == 'NOT':
             func_name = 'mod3not'
         else:
@@ -184,6 +249,10 @@ class Function(Expression):
         elif self._function_name == 'MIN':
             assert len(expressions_as_polynomials) == 2, "wrong number of arguments for MIN"
             return min3(expressions_as_polynomials[0], expressions_as_polynomials[1])
+
+        elif self._function_name == 'CONT':
+            assert len(expressions_as_polynomials) == 2, "wrong number of arguments for CONT"
+            return cont3(expressions_as_polynomials[0], expressions_as_polynomials[1])
 
         elif self._function_name == 'NOT':
             assert len(expressions_as_polynomials) == 1, "wrong number of arguments for NOT"
@@ -379,12 +448,14 @@ class Monomial(Expression):
 
     def __init__(self, power_dict: dict):
         # copy over only those terms which actually appear
-        self._power_dict = {var: power_dict[var] for var in power_dict if power_dict[var] != 0}
-        for var in power_dict.keys():
-            while self._power_dict[var] < 0:
-                self._power_dict[var] += 2
-            while self._power_dict[var] >= 3:
-                self._power_dict[var] -= 2
+        self._power_dict = {str(var): power_dict[var] for var in power_dict if power_dict[var] != 0}
+        for var in self._power_dict.keys():
+            #while self._power_dict[var] < 0:
+            #    self._power_dict[var] += 2     <--- replace with below
+            assert self._power_dict[var] > 0 # b/c x^-1 isn't exactly x (i.e. when x=0)
+            #while self._power_dict[var] >= 3:
+            #    self._power_dict[var] -= 2     <--- replace with below
+            self._power_dict[var] = 1 + ((-1+self._power_dict[var]) % 2)
 
     def as_polynomial(self):
         return self
@@ -406,10 +477,10 @@ class Monomial(Expression):
             if type(variable) == str:
                 sanitized_variable_dict.update({variable: variable_dict[variable]})
             elif type(variable) == Monomial:
-                if len(variable.power_dict) != 1:
+                if len(variable._power_dict) != 1:
                     raise Exception("We do not know how to evaluate monomials of zero or several variables")
                 else:
-                    variable_as_str = list(variable.power_dict.keys())[0]
+                    variable_as_str = list(variable._power_dict.keys())[0]
                     sanitized_variable_dict.update({variable_as_str: variable_dict[variable]})
         variable_dict = sanitized_variable_dict
 
@@ -499,6 +570,8 @@ class Monomial(Expression):
         return ((-1)*self) + other
 
     def __eq__(self, other):
+        if type(other) == str:
+            other = Monomial.as_var(other)
         if type(other) == Monomial:
             return self._power_dict == other._power_dict
         elif type(other) == Mod3Poly:
@@ -513,10 +586,14 @@ class Monomial(Expression):
             return False
 
     def __ne__(self, other):
+        if type(other) == str:
+            other = Monomial.as_var(other)
         return not (self == other)
 
     def __lt__(self, other):
         self_vars = set(self._power_dict.keys())
+        if type(other) == str:
+            other = Monomial.as_var(other)
         other_vars = set(other._power_dict.keys())
         # if we have a var that they don't we cannot be "smaller"
         if len(self_vars - other_vars) > 0:
@@ -532,6 +609,8 @@ class Monomial(Expression):
 
     def __le__(self, other):
         self_vars = set(self._power_dict.keys())
+        if type(other) == str:
+            other = Monomial.as_var(other)
         other_vars = set(other._power_dict.keys())
         # if we have a var that they don't we cannot be "smaller"
         if len(self_vars - other_vars) > 0:
@@ -544,6 +623,8 @@ class Monomial(Expression):
 
     def __gt__(self, other):
         self_vars = set(self._power_dict.keys())
+        if type(other) == str:
+            other = Monomial.as_var(other)
         other_vars = set(other._power_dict.keys())
         # if they have a var that they don't we cannot be "greater"
         if len(other_vars - self_vars) > 0:
@@ -559,6 +640,8 @@ class Monomial(Expression):
 
     def __ge__(self, other):
         self_vars = set(self._power_dict.keys())
+        if type(other) == str:
+            other = Monomial.as_var(other)
         other_vars = set(other._power_dict.keys())
         # if they have a var that they don't we cannot be "greater"
         if len(other_vars - self_vars) > 0:

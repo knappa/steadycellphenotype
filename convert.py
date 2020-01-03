@@ -316,7 +316,7 @@ def translate_to_expression_helper(formula, symbol_table):
 
             raise ParseError('could not find the end of the argument to NOT')
 
-        elif function_name == 'MAX' or function_name == 'MIN':
+        elif function_name in ['MAX', 'MIN', 'CONT']:
             # try to find the comma
             for comma_index in find_all('COMMA', formula):
                 try:
@@ -477,9 +477,6 @@ def h(x, fx):
 
 
 def get_continuous_per_formula(var, formula):
-    # take the easy out
-    if formula.is_constant():
-        return var, formula
     # go through the whole buisness for the target variable, first
     accumulator = Mod3Poly.zero()
     for base_value in range(3):
