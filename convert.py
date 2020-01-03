@@ -533,7 +533,7 @@ def main():
                         help='use descriptive names for variables')
     parser.add_argument('-no-polys',
                         action='store_true',
-                        help='do not output polynomials, intended for use when output is by simulator')
+                        help='do not output polynomials, used by default when output is by simulator')
     parser.add_argument('-sim',
                         action='store_true',
                         help='output C-language simulator program instead of formulae')
@@ -547,7 +547,7 @@ def main():
                         help='list of variables to _not_ apply continuity operation to')
     parser.add_argument('-power', '--self-power', type=int,
                         help='gets polynomials for a power of the system. i.e. self-composition, power-1 times ('
-                             'default: 1)')
+                             'default: 1) ignored for simulator')
     args = parser.parse_args()
 
     in_formulae = ''
@@ -571,28 +571,30 @@ def main():
     # parse the file to (target, formula) pairs
     symbol_table, out_formulae = parse(in_formulae, translate_symbol_names_to_xs)
 
-    # impose continuity, if desired
-    if not args.continuous and args.continuous_omit:
-        print("Asked to omit continuity for system which was not continuous. This is probably an error; exiting.")
-        exit(-1)
-    if args.continuous is not None and args.continuous:
-        out_formulae = get_continuous_formulae(out_formulae, args.continuous_omit)
 
-    # do composition if requested
-    if args.self_power is not None:
-        if args.self_power < 0:
-            raise Exception("Cannot take negative power composition of system!")
-        else:
-            out_formulae = self_compose(out_formulae, args.self_power)
-
+    ### continuity is a lot different in the simulation vs. polynomials and needs to be handled differently
     if args.sim:
         count = 1_000_000
         if args.count is not None:
             count = args.count
-        output_as_program(out_formulae, not args.no_polys, args.outputfile, symbol_table, count)
+            
+        output_as_program(out_formulae, not args.no_polys, args.outputfile, symbol_table, count, args.continuous, args.continuous_omit)
     else:
-        output_as_formulae(out_formulae, translate_symbol_names_to_xs, not args.no_polys, args.outputfile)
+        # impose continuity, if desired
+        if not args.continuous and args.continuous_omit:
+            print("Asked to omit continuity for system which was not continuous. This is probably an error; exiting.")
+            exit(-1)
+        if args.continuous is not None and args.continuous:
+            out_formulae = get_continuous_formulae(out_formulae, args.continuous_omit)
 
+        # do composition if requested
+        if args.self_power is not None:
+            if args.self_power < 0:
+                raise Exception("Cannot take negative power composition of system!")
+            else:
+                out_formulae = self_compose(out_formulae, args.self_power)
+                
+        output_as_formulae(out_formulae, translate_symbol_names_to_xs, not args.no_polys, args.outputfile)
 
 def output_as_formulae(out_formulae, translate_symbol_names_to_xs, as_polynomials, output_file):
     # convert (target, formula) pairs to strings
@@ -611,7 +613,10 @@ def output_as_formulae(out_formulae, translate_symbol_names_to_xs, as_polynomial
             print(formula)
 
 
-def output_as_program(out_formulae, use_polys, output_file, symbol_table, num_runs):
+def output_as_program(out_formulae, use_polys, output_file, symbol_table, num_runs, continuous, continuous_omit):
+    if continuous_omit is None:
+        continuous_omit = []
+    
     # get symbols, in order
     symbol_indices = sorted([symbol for symbol in symbol_table if type(symbol) == int])
     symbols = tuple((symbol_table[index] for index in symbol_indices))
@@ -633,12 +638,20 @@ def output_as_program(out_formulae, use_polys, output_file, symbol_table, num_ru
         function_name = target + "_next"
         function_names.append(function_name)
 
-        function_template = """
+        if continuous and target not in continuous_omit:
+            function_template = """
+int {function_name}({typed_param_list})
+{{
+  return mod3continuity({target}, ( {c_formula} ) % 3);
+}}"""
+        else:
+            function_template = """
 int {function_name}({typed_param_list})
 {{
   return ( {c_formula} ) % 3;
 }}"""
-        function = function_template.format(function_name=function_name,
+        function = function_template.format(target=target,
+                                            function_name=function_name,
                                             typed_param_list=typed_param_list,
                                             c_formula=string_c_formula)
 
