@@ -216,8 +216,8 @@ def create_app(test_config=None):
             ### XXX Jan 8
             print(convert_to_poly_process.args)
             print(convert_to_poly_process.stdout)
-            import shutil
-            shutil.copyfile(tmpdirname + '/model-polys.txt', '/home/knappa/model-polys.txt')
+            #import shutil
+            #shutil.copyfile(tmpdirname + '/model-polys.txt', '/home/knappa/model-polys.txt')
             ### XXX Jan 8
             if convert_to_poly_process.returncode != 0:
                 response = make_response(error_report(
