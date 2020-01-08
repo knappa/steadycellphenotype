@@ -26,8 +26,8 @@ generat=gens gb I;
 loadPackage "RationalPoints"
 U=ZZ/3[X]
 
-T=substitute(I,U);
-
+--T=substitute(I,U);
+T=ideal(substitute(generat,U));
 
 --Compute steady states
 steadstates=rationalPoints T

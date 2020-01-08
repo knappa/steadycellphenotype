@@ -12,6 +12,13 @@
         checkboxes[i].checked = source.checked;
     }
   }
+
+  function uncheck(targetName) {
+    var checkbox = document.querySelector('input[name="' + targetName + '-continuous"]');
+    checkbox.checked = false;
+    var checkbox = document.querySelector('input[name="all-continuous"]');
+    checkbox.checked = false;
+  }
 </script>
 {% endblock %}
 {% block content %}
@@ -25,7 +32,7 @@
 	<table class="w3-table-all w3-margin w3-hoverable">
 	  <tr class="w3-us-blue">
 	    <th>Variable</th>
-	    <th><input type="checkbox" onClick="toggle(this)"> Continuous</th>
+	    <th><input type="checkbox" name="all-continuous" onClick="toggle(this)"> Continuous</th>
 	    <th>Forcing</th>
 	  </tr>
 	  {% for variable in variables %}
@@ -33,7 +40,7 @@
             <td>{{ variable }}</td>
 	    <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"></td>
 	    <td>
-	      <select name="{{variable}}-KO">
+	      <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
 		<option selected value="None"></option>
 		<option value="0">0</option>
 		<option value="1">1</option>

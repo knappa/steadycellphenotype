@@ -197,7 +197,9 @@ def create_app(test_config=None):
 
             def error_msg_parse(msg):
                 import html
-                return html.escape(msg.decode()).replace('\n', '<br>').replace(' ', '&nbsp')
+                if type(msg) is not str:
+                    msg = msg.decode()
+                return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
 
             # convert the model to polynomials
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
@@ -211,6 +213,12 @@ def create_app(test_config=None):
                                 '-i', tmpdirname + '/model.txt',
                                 '-o', tmpdirname + '/model-polys.txt'] + continuity_params,
                                capture_output=True)
+            ### XXX Jan 8
+            print(convert_to_poly_process.args)
+            print(convert_to_poly_process.stdout)
+            import shutil
+            shutil.copyfile(tmpdirname + '/model-polys.txt', '/home/knappa/model-polys.txt')
+            ### XXX Jan 8
             if convert_to_poly_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_poly_process.stdout),
@@ -219,10 +227,11 @@ def create_app(test_config=None):
 
             with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
                     open(tmpdirname + '/find_steady_states.m2', 'w') as macaulay_script:
-                macaulay_script.write(template.read().format(
+                template_contents = template.read()
+                macaulay_script.write(template_contents.format(
                     polynomial_file=tmpdirname + '/model-polys.txt',
                     output_file=tmpdirname + '/results.txt'))
-
+                
             # TODO: put a limit on the amount of time this can run
             find_steady_states_process = \
                 subprocess.run([macaulay_executable,
@@ -230,9 +239,12 @@ def create_app(test_config=None):
                                 tmpdirname + '/find_steady_states.m2'],
                                capture_output=True)
             if find_steady_states_process.returncode != 0:
-                response = make_response(error_report(
-                    'Error running Macaulay!\n{}\n{}'.format(error_msg_parse(find_steady_states_process.stdout),
-                                                             error_msg_parse(find_steady_states_process.stderr))))
+                with open(tmpdirname + '/model-polys.txt','r') as poly_file:
+                    response = make_response(error_report(
+                        'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
+                            error_msg_parse(find_steady_states_process.stdout),
+                            error_msg_parse(find_steady_states_process.stderr),
+                            error_msg_parse(poly_file.read()))))
                 return response_set_model_cookie(response, model_state)
 
             def process_line(line):
@@ -276,7 +288,9 @@ def create_app(test_config=None):
 
             def error_msg_parse(msg):
                 import html
-                return html.escape(msg.decode()).replace('\n', '<br>').replace(' ', '&nbsp')
+                if type(msg) is not str:
+                    msg = msg.decode()
+                return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
 
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:

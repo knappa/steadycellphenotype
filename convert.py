@@ -92,16 +92,21 @@ def generate_symbol_table(tokenized_list: list, translate_to_xs=True):
     """
     symbol_table = dict()
     # first, find everything of the form 'SYMBOL=' and enter them into table
-    counter = 0
+    num_symbols = 0
     for index in range(len(tokenized_list) - 1):
         if tokenized_list[index][0] == 'SYMBOL' and tokenized_list[index + 1][0] == 'EQUALS':
             symbol = tokenized_list[index][1]
             if symbol in tokenized_list:
                 raise Exception('%s occurs at least twice in the form %s='%(symbol, symbol))
-            symbol_table[symbol] = counter
-            symbol_table[counter] = symbol
-            counter += 1
+            symbol_table[symbol] = num_symbols
+            symbol_table[num_symbols] = symbol
+            num_symbols += 1
 
+    # TODO: streamline this, multiple changes have made this kind of
+    # hack-ish. Perhaps we should avoid translating to x's form except when
+    # printing
+    orig_var_name_translation = symbol_table
+            
     # check that every symbol occurs in the above way
     for (token_type, token) in tokenized_list:
         if token_type == 'SYMBOL' and token not in symbol_table:
@@ -113,9 +118,9 @@ def generate_symbol_table(tokenized_list: list, translate_to_xs=True):
         tokenized_list = [(symbol_type, text) if symbol_type != 'SYMBOL' else ('SYMBOL', 'x%d'%symbol_table[text])
                           for (symbol_type, text) in tokenized_list]
         # replace the symbol table with the new one
-        symbol_table = {n: ('x%d'%n) for n in range(counter)}
-        symbol_table.update({('x%d'%n): n for n in range(counter)})
-    return counter, symbol_table, tokenized_list
+        symbol_table = {n: ('x%d'%n) for n in range(num_symbols)}
+        symbol_table.update({('x%d'%n): n for n in range(num_symbols)})
+    return num_symbols, symbol_table, tokenized_list, orig_var_name_translation
 
 
 ####################################################################################################
@@ -365,12 +370,13 @@ def parse(input_string, translate_symbol_names_to_xs):
 
     """
     tokenized_list = tokenize(input_string)
-    num_symbols, symbol_table, tokenized_list = generate_symbol_table(tokenized_list,
-                                                                      translate_symbol_names_to_xs)
+    num_symbols, symbol_table, tokenized_list, orig_var_name = generate_symbol_table(tokenized_list,
+                                                                        translate_symbol_names_to_xs)
     equation_list = separate_equations(tokenized_list)
     output_formulae = [(target, translate_to_expression(formula, symbol_table))
                        for target, formula in equation_list]
-    return symbol_table, output_formulae
+
+    return symbol_table, output_formulae, orig_var_name
 
 
 # end of recursive descent parser
@@ -477,6 +483,9 @@ def h(x, fx):
 
 
 def get_continuous_per_formula(var, formula):
+    if type(formula) == int or formula.is_constant():
+        return var, formula
+    
     # go through the whole buisness for the target variable, first
     accumulator = Mod3Poly.zero()
     for base_value in range(3):
@@ -566,8 +575,11 @@ def main():
     translate_symbol_names_to_xs = not args.n
 
     # parse the file to (target, formula) pairs
-    symbol_table, out_formulae = parse(in_formulae, translate_symbol_names_to_xs)
+    symbol_table, out_formulae, orig_var_name = parse(in_formulae, translate_symbol_names_to_xs)
 
+    # find the 'new' names of any variables to omit
+    if args.continuous_omit is not None:
+        args.continuous_omit = [ symbol_table[orig_var_name[var]] for var in args.continuous_omit ]
 
     ### continuity is a lot different in the simulation vs. polynomials and needs to be handled differently
     if args.sim:
