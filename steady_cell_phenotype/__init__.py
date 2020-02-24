@@ -363,6 +363,7 @@ def create_app(test_config=None):
                 plt.tight_layout()
                 image_filename = 'dist-' + str(cycle) + '.svg'
                 plt.savefig(tmpdirname + '/' + image_filename, transparent=True, pad_inches=0.0)
+                plt.close()
                 with open(tmpdirname + '/' + image_filename, 'r') as image:
                     combined_output[cycle]['image'] = Markup(image.read())
 
