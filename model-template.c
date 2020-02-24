@@ -113,7 +113,6 @@ int main(int argc, char** argv)
     if( cycle_length == transition_count &&
         {neq_check} )
       {{
-	/*printf("oops, bloom filter detected fake cycle\n");*/
 	continue;
       }}
 
@@ -121,7 +120,8 @@ int main(int argc, char** argv)
     for(int index =0; index < 10; index++) cycle_hash += cycle_hash_symmetric_functions[index];
 
     /* record this cycle */
-    bool new_cycle = record_cycle(cycle_hash, cycle_length);
+    int path_length_to_cycle = transition_count - cycle_length;
+    bool new_cycle = record_cycle(cycle_hash, cycle_length, path_length_to_cycle);
 
     if(new_cycle)
       {{
@@ -153,6 +153,7 @@ int main(int argc, char** argv)
           }}
         printf("]}}\n");
       }}
+    
     }}
 
   printf(" ],");

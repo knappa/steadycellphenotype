@@ -1,13 +1,15 @@
 #include <stdbool.h>
+#include "length-count-array.h"
 
 #define TABLE_SIZE 65536
 
 unsigned long int cycle_ids[TABLE_SIZE];
 u_int64_t cycle_lengths[TABLE_SIZE];
 u_int64_t cycle_counts[TABLE_SIZE];
+path_length_count length_counts[TABLE_SIZE];
 
 /* returns true if the cycle is new */
-bool record_cycle(unsigned long int hash_code, int cycle_length)
+bool record_cycle(unsigned long int hash_code, int cycle_length, int path_length_to_cycle)
 {
 
   int index = (int) ( hash_code % TABLE_SIZE );
