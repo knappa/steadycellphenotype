@@ -11,7 +11,7 @@ path_length_count length_counts[TABLE_SIZE];
 /* returns true if the cycle is new */
 bool record_cycle(unsigned long int hash_code, int cycle_length, int path_length_to_cycle)
 {
-
+  
   int index = (int) ( hash_code % TABLE_SIZE );
   
   /* forward chained */
@@ -25,11 +25,14 @@ bool record_cycle(unsigned long int hash_code, int cycle_length, int path_length
 	cycle_ids[index] = hash_code;
 	cycle_lengths[index] = cycle_length;
 	cycle_counts[index] = 1;
+	init_counts(&length_counts[index]);
+	update_counts(&length_counts[index], path_length_to_cycle);
 	return true;
       }
     else if( cycle_ids[index] == hash_code )
       {
 	cycle_counts[index] += 1;
+	update_counts(&length_counts[index], path_length_to_cycle);
 	return false;
       }
 
@@ -56,13 +59,15 @@ void print_cycle_counts(int runs)
 	} else {
 	  printf(",");
 	}
-	printf("{ \"id\":%10u, \"length\":%2u, \"count\":%8u, \"percent\":%7.3f}\n",
+	printf("{ \"id\":%u, \"length\":%u, \"count\":%u, \"percent\":%7.2f, ",
 	       cycle_ids[index],
 	       cycle_lengths[index],
 	       cycle_counts[index],
 	       (100.0*cycle_counts[index])/runs);
+	print_length_distribution(&length_counts[index]);
+	printf("}\n");
       }
     }
-  printf("]}");
+  printf("]}\n");
 }
 

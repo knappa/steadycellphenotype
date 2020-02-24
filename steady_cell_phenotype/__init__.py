@@ -13,7 +13,7 @@ import string
 import subprocess
 import tempfile
 
-from flask import Flask, render_template, request, make_response, Response
+from flask import Flask, render_template, request, make_response, Response, Markup
 from werkzeug.utils import secure_filename
 
 def create_app(test_config=None):
@@ -314,6 +314,7 @@ def create_app(test_config=None):
             subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmpdirname])
             subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmpdirname])
             subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmpdirname])
+            subprocess.run(['cp', os.getcwd() + '/length-count-array.h', tmpdirname])
 
             # TODO: be fancy about compiler selection, using shutil.which
             compilation_process = \
@@ -335,15 +336,35 @@ def create_app(test_config=None):
 
             simulator_output = json.loads(simulation_process.stdout.decode())
 
-        # somewhat redundant data in the two fields, combine them, indexed by id
-        combined_output = {
-            cycle['id']: {'length': cycle['length'], 'count': cycle['count'], 'percent': cycle['percent']}
-            for cycle in simulator_output['counts']}
-        for cycle in simulator_output['cycles']:
-            combined_output[cycle['id']]['cycle'] = cycle['cycle']
+            # somewhat redundant data in the two fields, combine them, indexed by id
+            combined_output = {
+                cycle['id']: {'length': cycle['length'],
+                            'count': cycle['count'],
+                            'percent': cycle['percent'],
+                            'length-dist': cycle['length-dist'] }
+                for cycle in simulator_output['counts'] }
+            for cycle in simulator_output['cycles']:
+                combined_output[cycle['id']]['cycle'] = cycle['cycle']
 
-        cycle_list = list(combined_output.values())
-        cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
+            cycle_list = list(combined_output.values())
+            cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
+
+            # create length distribution plots
+            import matplotlib.pyplot as plt
+            import matplotlib as mpl
+            plt.rcParams['svg.fonttype'] = 'none'
+            for cycle in combined_output:
+                length_dist = combined_output[cycle]['length-dist']
+                plt.figure(figsize=(4,3))
+                plt.bar(x=range(len(length_dist)), height=length_dist, color='#002868')
+                plt.title('Distribution of lengths of paths')
+                plt.xlabel('Length of path')
+                plt.ylabel('Number of states')
+                plt.tight_layout()
+                image_filename = 'dist-' + str(cycle) + '.svg'
+                plt.savefig(tmpdirname + '/' + image_filename, transparent=True, pad_inches=0.0)
+                with open(tmpdirname + '/' + image_filename, 'r') as image:
+                    combined_output[cycle]['image'] = Markup(image.read())
 
         # respond with the results-of-computation page
         response = make_response(render_template('compute-cycles.html', cycles=cycle_list))

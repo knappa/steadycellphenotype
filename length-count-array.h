@@ -1,7 +1,6 @@
 #define INITIAL_SIZE 256
 
-typedef struct
-{
+typedef struct {
   u_int32_t *array;
   size_t size;
   size_t max_length;
@@ -11,10 +10,10 @@ void init_counts(path_length_count *plc)
 {
   plc->array = (u_int32_t *) malloc(INITIAL_SIZE * sizeof(u_int32_t));
   plc->size = INITIAL_SIZE;
-  plc->max_nonzero = -1;
+  plc->max_length = 0;
   /* TODO: check, does malloc zero memory? If so, this is unneeded. */
   for(int idx = 0; idx < INITIAL_SIZE; idx ++)
-    { (a->array)[idx] = 0; }
+    { (plc->array)[idx] = 0; }
 }
 
 void update_counts(path_length_count *plc, int new_length)
@@ -35,6 +34,7 @@ void update_counts(path_length_count *plc, int new_length)
 
   /* update max length */
   plc->max_length = (plc->max_length > new_length) ? plc->max_length : new_length;
+
 }
 
 void print_length_distribution(path_length_count *plc)
@@ -42,11 +42,9 @@ void print_length_distribution(path_length_count *plc)
   printf(" \"length-dist\" : [");
   if( plc->max_length >= 0 )
     {
-      printf("%5u", (plc->array)[0]);
+      printf("%u", (plc->array)[0]);
       for(int idx = 1; idx <= plc->max_length; idx++)
-	{
-	  printf(", %5u", (plc->array)[idx]);
-	}
+	{ printf(", %u", (plc->array)[idx]); }
     }
   printf("]");
 }
@@ -56,4 +54,5 @@ void free_length_count(path_length_count *plc)
   free(plc->array);
   plc->array = NULL;
   plc->size = 0;
+  plc->max_length = 0;
 }
