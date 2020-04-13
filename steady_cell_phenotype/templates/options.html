@@ -19,6 +19,8 @@
     var checkbox = document.querySelector('input[name="all-continuous"]');
     checkbox.checked = false;
   }
+
+
 </script>
 {% endblock %}
 {% block content %}
@@ -26,53 +28,55 @@
 <h1>Model Options</h1>
 
 <center>
-  <div class="w3-container w3-margin w3-left-align" style="width:80%">
-    <form class="w3-container" method="post" action="/compute/">
-      <div class="w3-row-padding">
-	<table class="w3-table-all w3-margin w3-hoverable">
-	  <tr class="w3-us-blue">
-	    <th>Variable</th>
-	    <th><input type="checkbox" name="all-continuous" onClick="toggle(this)"> Continuous</th>
-	    <th>Forcing</th>
-	  </tr>
-	  {% for variable in variables %}
-	  <tr>
-            <td>{{ variable }}</td>
-	    <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"></td>
-	    <td>
-	      <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
-		<option selected value="None"></option>
-		<option value="0">0</option>
-		<option value="1">1</option>
-		<option value="2">2</option>
-	      </select>
-	    </td>
-	  </tr>
-	  {% endfor %}
-	</table>
-	<div class="w3-cell-row w3-us-blue w3-margin">
-	  <div class="w3-container w3-cell w3-mobile">
-	    <div class="w3-container">
-	      <input type="radio" class="w3-radio w3-margin" name="action" value="cycles" checked>
-	      <label for="cycles">Sample fixed points and cycles <select name="num_samples">
-		<option selected value="1000">1,000</option>
-		<option value="10000">10,000</option>
-		<option value="100000">100,000</option>
-		<option value="1000000">1,000,000</option>
-		<option value="10000000">10,000,000</option>
-		<option value="100000000">100,000,000</option>
-		<option value="1000000000">1,000,000,000</option>
-	      </select> times </label>
-	    </div>
-	  </div>
-	  <div class="w3-container w3-cell w3-mobile">
-	    <input type="radio" class="w3-radio w3-margin" name="action" value="fixed_points">
-	    <label for="fixed_points">Find all fixed points</label>
-	  </div>
-	</div>
-	<input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Compute">
-      </div>
-    </form>
-  </div>
+    <div class="w3-container w3-margin w3-left-align" style="width:80%">
+        <form class="w3-container" method="post" action="/compute/">
+            <div class="w3-row-padding">
+                <table class="w3-table-all w3-margin w3-hoverable">
+                    <tr class="w3-us-blue">
+                        <th>Variable</th>
+                        <th><input type="checkbox" name="all-continuous" onClick="toggle(this)"> Continuous</th>
+                        <th>Forcing</th>
+                    </tr>
+                    {% for variable in variables %}
+                    <tr>
+                        <td>{{ variable }}</td>
+                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"></td>
+                        <td>
+                            <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
+                                <option selected value="None"></option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </table>
+                <div class="w3-cell-row w3-us-blue w3-margin">
+                    <div class="w3-container w3-cell w3-mobile">
+                        <div class="w3-container">
+                            <input type="radio" class="w3-radio w3-margin" id="cycles" name="action" value="cycles"
+                                   checked>
+                            <label for="cycles">Sample fixed points and cycles <select name="num_samples">
+                                <option selected value="1000">1,000</option>
+                                <option value="10000">10,000</option>
+                                <option value="100000">100,000</option>
+                                <option value="1000000">1,000,000</option>
+                                <option value="10000000">10,000,000</option>
+                                <option value="100000000">100,000,000</option>
+                                <option value="1000000000">1,000,000,000</option>
+                            </select> times </label>
+                        </div>
+                    </div>
+                    <div class="w3-container w3-cell w3-mobile">
+                        <input type="radio" class="w3-radio w3-margin" id="fixed_points" name="action"
+                               value="fixed_points">
+                        <label for="fixed_points">Find all fixed points</label>
+                    </div>
+                </div>
+                <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Compute">
+            </div>
+        </form>
+    </div>
 </center>
 {% endblock %}

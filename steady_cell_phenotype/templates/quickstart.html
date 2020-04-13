@@ -1,103 +1,106 @@
 {% extends "basic_template.html" %}
 {% block title %}
-  {{ super() }}
+{{ super() }}
 {% endblock %}
 {% block head %}
-  {{ super() }}
+{{ super() }}
 {% endblock %}
 {% block content %}
 
 <h1>Quick Start</h1>
 
 <section class="w3-container">
-  <h2>Entering a model</h2>
-  <article>
-    <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
-      <img src="{{ url_for('static', filename='quickstart-1.png') }}" alt="Main page with the model A=B, B=A">
-    </aside> 
-    <p>
-      Enter the model in the textbox
-      <ul>
-	<li>Each equation should be of the form "var=formula"</li>
-	<li>Each variable must show up exactly once as a left-hand-side of one of these equationa</li>
-	<li>Capitilization matters! Two variables with the same letters but different
-	capitilizations are considered distinct.</li>
-	<li>The formula may contain +, -, *, ^, MAX, MIN, and NOT.</li>
-      </ul>
-    </p>
-    <p>Once you have entered the model, click on the submit button. On the backend, we do a quick
-      check to make sure each line is of the form var=formula, but do no other checking.</p>
-    <p>For this example, we will use a very simple model with two variables, A and B.</p>
-  </article>
+    <h2>Entering a model</h2>
+    <article>
+        <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
+            <img src="{{ url_for('static', filename='quickstart-1.png') }}" alt="Main page with the model A=B, B=A">
+        </aside>
+        <p>
+            Enter the model in the textbox
+        </p>
+        <ul>
+            <li>Each equation should be of the form "var=formula"</li>
+            <li>Each variable must show up exactly once as a left-hand-side of one of these equationa</li>
+            <li>Capitilization matters! Two variables with the same letters but different
+                capitilizations are considered distinct.
+            </li>
+            <li>The formula may contain +, -, *, ^, MAX, MIN, and NOT.</li>
+        </ul>
+
+        <p>Once you have entered the model, click on the submit button. On the backend, we do a quick
+            check to make sure each line is of the form var=formula, but do no other checking.</p>
+        <p>For this example, we will use a very simple model with two variables, A and B.</p>
+    </article>
 </section>
 
 
-
-
-
 <section class="w3-container">
-  <h2>Selecting model options</h2>
-  <article>
-    <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
-      <img src="{{ url_for('static', filename='quickstart-2.png') }}" alt="Model options page">
-    </aside> 
-    <p>
-      With the model entered, we are presented with several options
-      <ul>
-	<li>Each variable (or all variables) may be made "continuous"; meaning that the model will
-	be altered so that no quantity may jump more than 1 level in each time step. Check the
-	corresponding box for any variable you wish to be continuous. The box in the column heading
-	toggles the entire column.</li>
-	<li>Each variable may be <em>forced</em> to either be over-expressed (2), at base-line (1),
-	or knocked-out (0) using the dropdown menus in the Forcing column. </li>
-	<li>Using the radio-buttons near the bottom, we may select either
-	  <ol>
-	    <li><b>Sample fixed points and cycles.</b> In which we generate a uniform random sample
-	    of starting points in the configuration space (quantity choosable via dropdown) and let
-	    them evolve via the model until they either arrive at a fixed point or cycle. Statistics
-	    are generated on number of starting points which are in the basin of attraction for each
-	    cycle or fixed point found. We <em>do not guarantee</em> that all cycles or fixed points
-	    will be found.</li>
-	    <li><b>Find all fixed points.</b> In which we use computer algebra software to find all
-	    fixed points. Here we <em>guarantee</em> that all fixed points will be found. However,
-	    this algorithm will not find cycles and does not give any information on the size of the
-	    basin of attraction.</li>
-	  </ol>
-	</li>
-      </ul>
-      Once you have made your choices, click on the submit button.
-    </p>    
-    <p>The computation will hopefully be quick, but is not instantaneous. Expect a short wait; the
-    next page will be rendered once the server is finished simulating. </p>
-  </article>
+    <h2>Selecting model options</h2>
+    <article>
+        <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
+            <img src="{{ url_for('static', filename='quickstart-2.png') }}" alt="Model options page">
+        </aside>
+        <p>
+            With the model entered, we are presented with several options
+        <ul>
+            <li>Each variable (or all variables) may be made "continuous"; meaning that the model will
+                be altered so that no quantity may jump more than 1 level in each time step. Check the
+                corresponding box for any variable you wish to be continuous. The box in the column heading
+                toggles the entire column.
+            </li>
+            <li>Each variable may be <em>forced</em> to either be over-expressed (2), at base-line (1),
+                or knocked-out (0) using the dropdown menus in the Forcing column.
+            </li>
+            <li>Using the radio-buttons near the bottom, we may select either
+                <ol>
+                    <li><b>Sample fixed points and cycles.</b> In which we generate a uniform random sample
+                        of starting points in the configuration space (quantity choosable via dropdown) and let
+                        them evolve via the model until they either arrive at a fixed point or cycle. Statistics
+                        are generated on number of starting points which are in the basin of attraction for each
+                        cycle or fixed point found. We <em>do not guarantee</em> that all cycles or fixed points
+                        will be found.
+                    </li>
+                    <li><b>Find all fixed points.</b> In which we use computer algebra software to find all
+                        fixed points. Here we <em>guarantee</em> that all fixed points will be found. However,
+                        this algorithm will not find cycles and does not give any information on the size of the
+                        basin of attraction.
+                    </li>
+                </ol>
+            </li>
+        </ul>
+        Once you have made your choices, click on the submit button.
+        </p>
+        <p>The computation will hopefully be quick, but is not instantaneous. Expect a short wait; the
+            next page will be rendered once the server is finished simulating. </p>
+    </article>
 </section>
 
 
-
-
 <section class="w3-container">
-  <h2>Results</h2>
-  <article>
-    <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
-      <img src="{{ url_for('static', filename='quickstart-3.png') }}" alt="Model options page">
-    </aside> 
-    <p>
-      Here we show the (bottom part) of the results page for a run where we choose to sample the
-      fixed points and cycles.
-      <ul>
-	<li>Cycles are labeled by their lengths (fixed points being cycles of length 1) and by their
-	sequence.</li>
-	<li>In red, we present the percentage and count of sampled points which are in the basin of
-	attraction for the cycle.</li>
-	<li>If you desire to use save the generated data, the button 'Download tsv' will generate a
-	tab separated value called model_results.tsv which contains the displayed data.
-	</li>
-      </ul>
-    </p>
-    
-    <p>If you wish to change model options or the model itself, use the browser's back button to get
-    to the appropriate page.</p>
-  </article>
+    <h2>Results</h2>
+    <article>
+        <aside class="w3-container w3-grey w3-margin w3-border-large w3-right">
+            <img src="{{ url_for('static', filename='quickstart-3.png') }}" alt="Model options page">
+        </aside>
+        <p>
+            Here we show the (bottom part) of the results page for a run where we choose to sample the
+            fixed points and cycles.
+        <ul>
+            <li>Cycles are labeled by their lengths (fixed points being cycles of length 1) and by their
+                sequence.
+            </li>
+            <li>In red, we present the percentage and count of sampled points which are in the basin of
+                attraction for the cycle.
+            </li>
+            <li>If you desire to use save the generated data, the button 'Download tsv' will generate a
+                tab separated value called model_results.tsv which contains the displayed data.
+            </li>
+        </ul>
+        </p>
+
+        <p>If you wish to change model options or the model itself, use the browser's back button to get
+            to the appropriate page.</p>
+    </article>
 </section>
 
 

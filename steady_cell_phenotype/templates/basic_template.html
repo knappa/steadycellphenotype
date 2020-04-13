@@ -1,6 +1,6 @@
 <!doctype html>
 <html lang="en">
-  <head>
+<head>
     {% block head %}
     <meta charset="utf-8">
     <title>SteadyCellPhenotype</title>
@@ -10,28 +10,27 @@
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     {% endblock %}
-  </head>
-  <body>
-    <header class="w3-container w3-us-blue">
-      <h1 class="w3-left">SteadyCellPhenotype</h1>
-      <right>
-	<a href="http://www.american.edu"><img class="w3-right w3-margin" style="height:36px" alt="American University" src="{{ url_for('static', filename='au-crest.svg') }}"></a>
-      </right>
-    </header>
-    <div class="w3-bar w3-black">
-      <a href="/" class="w3-bar-item w3-button w3-mobile">Home</a>
-      <a href="/quickstart/" class="w3-bar-item w3-button w3-mobile">Quick Start</a>
-      <a href="/docs/" class="w3-bar-item w3-button w3-mobile">Documentation</a>
-      <a href="/source/" class="w3-bar-item w3-button w3-mobile">Source</a>
-      <a href="/about/" class="w3-bar-item w3-button w3-mobile">About the Authors</a>
-    </div>
-    <div id="content" style="margin:auto; width:97%;">
-      {% block content %}{% endblock %}
-    </div>
-    <footer class="w3-container w3-us-red w3-margin-top">
-      {% block footer %}
-      <h5>Copyright 2019, Supported by CAS Mellon Fund, American University</h5>
-      {% endblock %}
-    </footer>
-  </body>
+</head>
+<body>
+<header class="w3-container w3-us-blue">
+    <h1 class="w3-left">SteadyCellPhenotype</h1>
+    <a href="http://www.american.edu"><img class="w3-right w3-margin" style="height:36px" alt="American University"
+                                           src="{{ url_for('static', filename='au-crest.svg') }}"></a>
+</header>
+<div class="w3-bar w3-black">
+    <a href="/" class="w3-bar-item w3-button w3-mobile">Home</a>
+    <a href="/quickstart/" class="w3-bar-item w3-button w3-mobile">Quick Start</a>
+    <a href="/docs/" class="w3-bar-item w3-button w3-mobile">Documentation</a>
+    <a href="/source/" class="w3-bar-item w3-button w3-mobile">Source</a>
+    <a href="/about/" class="w3-bar-item w3-button w3-mobile">About the Authors</a>
+</div>
+<div id="content" style="margin:auto; width:97%;">
+    {% block content %}{% endblock %}
+</div>
+<footer class="w3-container w3-us-red w3-margin-top">
+    {% block footer %}
+    <h5>Copyright 2019, Supported by CAS Mellon Fund, American University</h5>
+    {% endblock %}
+</footer>
+</body>
 </html>
