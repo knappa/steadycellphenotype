@@ -20,6 +20,10 @@
     checkbox.checked = false;
   }
 
+  function unset(targetName) {
+    var selector = document.querySelector('select[name="' + targetName + '-KO"]');
+    selector.selectedIndex = "0";
+  }
 
 </script>
 {% endblock %}
@@ -40,7 +44,7 @@
                     {% for variable in variables %}
                     <tr>
                         <td>{{ variable }}</td>
-                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"></td>
+                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}" onclick="unset('{{variable}}')"></td>
                         <td>
                             <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
                                 <option selected value="None"></option>
