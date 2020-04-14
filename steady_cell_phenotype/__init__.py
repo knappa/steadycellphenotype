@@ -1,20 +1,24 @@
 #!/usr/bin/env python3
 #
-# PROGRAM DESCRIPTION TODO
+# TODO: PROGRAM DESCRIPTION
 #
-# Copyright Adam C. Knapp 2019
+# Copyright Adam C. Knapp 2019-2020
 # License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 # Funded by American University Mellon Grant
 
 import datetime
+import html
 import json
 import os
+import shutil
 import string
 import subprocess
 import tempfile
 
+import matplotlib.pyplot as plt
 from flask import Flask, render_template, request, make_response, Response, Markup
 from werkzeug.utils import secure_filename
+
 
 def create_app(test_config=None):
     # create and configure the app
@@ -22,8 +26,8 @@ def create_app(test_config=None):
 
     app.config.from_mapping(
         SECRET_KEY='dev',
-        MAX_CONTENT_LENGTH = 512 * 1024, # maximum upload size: 512 kilobytes
-        UPLOAD_FOLDER=tempfile.TemporaryDirectory(), # TODO: does this make sense??? doesn't work without it
+        MAX_CONTENT_LENGTH=512 * 1024,  # maximum upload size: 512 kilobytes
+        UPLOAD_FOLDER=tempfile.TemporaryDirectory(),  # TODO: does this make sense??? doesn't work without it
         # added to assist when developing, should be removed in production
         TEMPLATES_AUTO_RELOAD=True,
         )
@@ -34,12 +38,13 @@ def create_app(test_config=None):
     else:
         # load the test config if passed in
         app.config.from_mapping(test_config)
-        
+
     ####################################################################################################
     # some _effectively_ static pages, which share a basic template
 
     @app.errorhandler(404)
     def page_not_found(error):
+        print(error)
         return render_template('page_not_found.html'), 404
 
     @app.route('/about/')
@@ -66,15 +71,14 @@ def create_app(test_config=None):
     # a download page
 
     @app.route('/download-tsv/', methods=['POST'])
-    def download_tsv():
+    def download_tsv() -> Response:
         try:
             tsv = request.form['model_result'].strip()
             return Response(
                 tsv,
                 mimetype="text/tab-separated-values",
-                headers={"Content-disposition":
-                             "attachment; filename=model_result.tsv"})
-        except:
+                headers={"Content-disposition": "attachment; filename=model_result.tsv"})
+        except KeyError:
             response = make_response(error_report(
                 "Something odd happened."))
             return response
@@ -82,7 +86,7 @@ def create_app(test_config=None):
     ####################################################################################################
     # the main / model entry page
 
-    @app.route('/', methods=['GET','POST'])
+    @app.route('/', methods=['GET', 'POST'])
     def index():
         """ render the main page """
 
@@ -91,12 +95,12 @@ def create_app(test_config=None):
         if request.method == 'POST' and 'model-file' in request.files:
             model_file = request.files['model-file']
             if model_file.filename != '':
-                with tempfile.TemporaryDirectory() as tmpdirname:
-                    filename = tmpdirname + '/' + secure_filename(model_file.filename)
+                with tempfile.TemporaryDirectory() as tmp_dir_name:
+                    filename = tmp_dir_name + '/' + secure_filename(model_file.filename)
                     model_file.save(filename)
                     with open(filename, 'r') as file:
                         model_from_file = file.read().strip()
-        
+
         model_state_cookie = request.cookies.get('state')
         if model_state_cookie is not None and model_state_cookie != '':
             model_state = json.loads(model_state_cookie)
@@ -109,7 +113,7 @@ def create_app(test_config=None):
             return render_template('index.html', rows=10)
 
     ####################################################################################################
-    # the main computational page
+    # main computational page
 
     @app.route('/compute/', methods=['POST'])
     def compute():
@@ -120,15 +124,16 @@ def create_app(test_config=None):
         if model_state_cookie is not None and model_state_cookie != '':
             try:
                 model_state = json.loads(model_state_cookie)
-            except:
+            except json.JSONDecodeError:
                 response = make_response(error_report(
                     "For some reason, we could not parse the cookie for this site. " +
-                    "We just tried to clear it, but if the error persists clear the cookie and try again."))
+                    "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
                 return response_set_model_cookie(response, dict())
         else:
             # respond with an error message if submission is ill-formed
             response = make_response(error_report(
-                'We couldn\'t find the cookie which contains your model, please go back to the main page and try again'))
+                "We couldn't find the cookie which contains your model, " +
+                "please go back to the main page and try again"))
             return response_set_model_cookie(response, dict())
 
         # respond with an error message if submission is ill-formed
@@ -166,7 +171,7 @@ def create_app(test_config=None):
         # get number of iterations for the simulation
         try:
             num_iterations = int(request.form['num_samples'])
-        except:
+        except ValueError:
             num_iterations = 0  # not going to waste any effort on garbage
 
         # decide which type of computation to run
@@ -183,20 +188,18 @@ def create_app(test_config=None):
         """ Run the fixed-point finding computation """
 
         # check to make sure that we have macaulay installed
-        import shutil
         macaulay_executable = shutil.which('M2')
         if macaulay_executable is None:
             response = make_response(error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
             return response_set_model_cookie(response, model_state)
 
         # we are set to do the computation
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            with open(tmpdirname + '/model.txt', 'w') as model_file:
+        with tempfile.TemporaryDirectory() as tmp_dir_name:
+            with open(tmp_dir_name + '/model.txt', 'w') as model_file:
                 model_file.write(knockout_model)
                 model_file.write('\n')
 
             def error_msg_parse(msg):
-                import html
                 if type(msg) is not str:
                     msg = msg.decode()
                 return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
@@ -209,16 +212,11 @@ def create_app(test_config=None):
                 continuity_params = ['-c']
 
             convert_to_poly_process = \
-                subprocess.run([os.getcwd() + '/convert.py',  # '-n',
-                                '-i', tmpdirname + '/model.txt',
-                                '-o', tmpdirname + '/model-polys.txt'] + continuity_params,
+                subprocess.run([os.getcwd() + '/convert.py', '-n',
+                                '-i', tmp_dir_name + '/model.txt',
+                                '-o', tmp_dir_name + '/model-polys.txt'] + continuity_params,
                                capture_output=True)
-            ### XXX Jan 8
-            print(convert_to_poly_process.args)
-            print(convert_to_poly_process.stdout)
-            #import shutil
-            #shutil.copyfile(tmpdirname + '/model-polys.txt', '/home/knappa/model-polys.txt')
-            ### XXX Jan 8
+
             if convert_to_poly_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_poly_process.stdout),
@@ -226,20 +224,20 @@ def create_app(test_config=None):
                 return response_set_model_cookie(response, model_state)
 
             with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
-                    open(tmpdirname + '/find_steady_states.m2', 'w') as macaulay_script:
+                    open(tmp_dir_name + '/find_steady_states.m2', 'w') as macaulay_script:
                 template_contents = template.read()
                 macaulay_script.write(template_contents.format(
-                    polynomial_file=tmpdirname + '/model-polys.txt',
-                    output_file=tmpdirname + '/results.txt'))
-                
+                    polynomial_file=tmp_dir_name + '/model-polys.txt',
+                    output_file=tmp_dir_name + '/results.txt'))
+
             # TODO: put a limit on the amount of time this can run
             find_steady_states_process = \
                 subprocess.run([macaulay_executable,
                                 '--script',
-                                tmpdirname + '/find_steady_states.m2'],
+                                tmp_dir_name + '/find_steady_states.m2'],
                                capture_output=True)
             if find_steady_states_process.returncode != 0:
-                with open(tmpdirname + '/model-polys.txt','r') as poly_file:
+                with open(tmp_dir_name + '/model-polys.txt', 'r') as poly_file:
                     response = make_response(error_report(
                         'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
                             error_msg_parse(find_steady_states_process.stdout),
@@ -251,14 +249,14 @@ def create_app(test_config=None):
                 line = line.strip()
                 if len(line) < 2:  # should at least have {}
                     return None
-                elif '{' is not line[0] or '}' is not line[-1]:
-                    raise Error("Malformed response from Macaulay")
+                elif line[0] != '{' or line[-1] != '}':
+                    raise RuntimeError("Malformed response from Macaulay")
 
                 line = line[1:-1]  # strip the {}'s
                 try:
                     results = map(int, line.split(','))
-                except:
-                    raise Error("Malformed response from Macaulay")
+                except ValueError:
+                    raise RuntimeError("Malformed response from Macaulay")
 
                 # make sure they are in 0,1,2
                 results = map(lambda n: (n + 3) % 3, results)
@@ -266,9 +264,9 @@ def create_app(test_config=None):
                 return tuple(results)
 
             try:
-                with open(tmpdirname + '/results.txt', 'r') as file:
+                with open(tmp_dir_name + '/results.txt', 'r') as file:
                     fixed_points = [process_line(line) for line in file]
-            except:
+            except (IOError, RuntimeError):
                 response = make_response(error_report('Malformed response from Macaulay!'))
                 return response_set_model_cookie(response, model_state)
 
@@ -281,28 +279,27 @@ def create_app(test_config=None):
         """ Run the cycle finding simulation """
         # Oh, this seems so very ugly
         # TODO: better integrating, thinking more about security
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            with open(tmpdirname + '/model.txt', 'w') as model_file:
+        with tempfile.TemporaryDirectory() as tmp_dir_name:
+            with open(tmp_dir_name + '/model.txt', 'w') as model_file:
                 model_file.write(knockout_model)
                 model_file.write('\n')
 
             def error_msg_parse(msg):
-                import html
                 if type(msg) is not str:
                     msg = msg.decode()
                 return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
 
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
-                continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
+                continuity_params = ['-c', '-comit'] + [variable for variable in variables
+                                                        if not continuous[variable]]
             else:
                 continuity_params = ['-c']
             convert_to_c_process = \
-                subprocess.run([os.getcwd() + '/convert.py', '-n', '-sim',
+                subprocess.run([os.getcwd() + '/convert.py', '-sim',
                                 '--count', str(num_iterations),
-                                # '10000',  # only 10K runs, I don't want to overload the server
-                                '-i', tmpdirname + '/model.txt',
-                                '-o', tmpdirname + '/model.c'] + continuity_params,
+                                '-i', tmp_dir_name + '/model.txt',
+                                '-o', tmp_dir_name + '/model.c'] + continuity_params,
                                capture_output=True)
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
@@ -311,14 +308,21 @@ def create_app(test_config=None):
                 return response_set_model_cookie(response, model_state)
 
             # copy the header files over
-            subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmpdirname])
-            subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmpdirname])
-            subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmpdirname])
-            subprocess.run(['cp', os.getcwd() + '/length-count-array.h', tmpdirname])
+            subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmp_dir_name])
+            subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmp_dir_name])
+            subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmp_dir_name])
+            subprocess.run(['cp', os.getcwd() + '/length-count-array.h', tmp_dir_name])
+            # not needed (except for graph simulator)
+            # subprocess.run(['cp', os.getcwd() + '/link-table.h', tmp_dir_name])
 
-            # TODO: be fancy about compiler selection, using shutil.which
+            # be fancy about compiler selection
+            installed_compilers = [shutil.which('clang'), shutil.which('gcc'), shutil.which('cc')]
+            compiler = installed_compilers[0] if installed_compilers[0] is not None \
+                else installed_compilers[1] if installed_compilers[1] is not None \
+                else installed_compilers[2]
+
             compilation_process = \
-                subprocess.run(['gcc', '-O3', tmpdirname + '/model.c', '-o', tmpdirname + '/model'],
+                subprocess.run([compiler, '-O3', tmp_dir_name + '/model.c', '-o', tmp_dir_name + '/model'],
                                capture_output=True)
             if compilation_process.returncode != 0:
                 response = make_response(error_report(
@@ -327,7 +331,7 @@ def create_app(test_config=None):
                 return response_set_model_cookie(response, model_state)
 
             simulation_process = \
-                subprocess.run([tmpdirname + '/model'], capture_output=True)
+                subprocess.run([tmp_dir_name + '/model'], capture_output=True)
             if simulation_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running simulator!\n{}\n{}'.format(simulation_process.stdout.decode(),
@@ -339,10 +343,10 @@ def create_app(test_config=None):
             # somewhat redundant data in the two fields, combine them, indexed by id
             combined_output = {
                 cycle['id']: {'length': cycle['length'],
-                            'count': cycle['count'],
-                            'percent': cycle['percent'],
-                            'length-dist': cycle['length-dist'] }
-                for cycle in simulator_output['counts'] }
+                              'count': cycle['count'],
+                              'percent': cycle['percent'],
+                              'length-dist': cycle['length-dist']}
+                for cycle in simulator_output['counts']}
             for cycle in simulator_output['cycles']:
                 combined_output[cycle['id']]['cycle'] = cycle['cycle']
 
@@ -350,21 +354,21 @@ def create_app(test_config=None):
             cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
 
             # create length distribution plots
-            import matplotlib.pyplot as plt
-            import matplotlib as mpl
             plt.rcParams['svg.fonttype'] = 'none'
             for cycle in combined_output:
                 length_dist = combined_output[cycle]['length-dist']
-                plt.figure(figsize=(4,3))
-                plt.bar(x=range(len(length_dist)), height=length_dist, color='#002868')
+                plt.figure(figsize=(4, 3))
+                plt.bar(x=range(len(length_dist)),
+                        height=length_dist,
+                        color='#002868')
                 plt.title('Distribution of lengths of paths')
                 plt.xlabel('Length of path')
                 plt.ylabel('Number of states')
                 plt.tight_layout()
                 image_filename = 'dist-' + str(cycle) + '.svg'
-                plt.savefig(tmpdirname + '/' + image_filename, transparent=True, pad_inches=0.0)
+                plt.savefig(tmp_dir_name + '/' + image_filename, transparent=True, pad_inches=0.0)
                 plt.close()
-                with open(tmpdirname + '/' + image_filename, 'r') as image:
+                with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                     combined_output[cycle]['image'] = Markup(image.read())
 
         # respond with the results-of-computation page
@@ -385,10 +389,10 @@ def create_app(test_config=None):
         if model_state_cookie is not None and model_state_cookie != '':
             try:
                 model_state = json.loads(model_state_cookie)
-            except:
+            except json.JSONDecodeError:
                 response = make_response(error_report(
                     "For some reason, we could not parse the cookie for this site. " +
-                    "We just tried to clear it, but if the error persists clear the cookie and try again."))
+                    "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
                 return response_set_model_cookie(response, dict())
         else:
             model_state = dict()
@@ -416,7 +420,7 @@ def create_app(test_config=None):
         variables = []
         right_sides = []
         too_many_eq_msg = "Count of ='s on line {lineno} was {eq_count} but each line must have a single = sign."
-        zero_len_var_msg = "No varible found before = on line {lineno}."
+        zero_len_var_msg = "No variable found before = on line {lineno}."
         zero_len_rhs_msg = "No right hand side of equation on line {lineno}."
         invalid_var_name_msg = "One line {lineno}, variable name must be alpha-numeric and include at least one letter."
         for lineno, line in enumerate(model.splitlines(), start=1):

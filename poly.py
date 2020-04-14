@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from enum import Enum
 from itertools import product
+from typing import Dict, Union
 
 
 class Operation(Enum):
@@ -11,6 +14,20 @@ class Operation(Enum):
     MIN = 'MIN'
     CONT = 'CONT'
     NOT = 'NOT'
+
+
+####################################################################################################
+
+def h(x, fx):
+    """helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24"""
+    fx = fx % 3
+    x  = x % 3
+    if fx > x:
+        return x + 1
+    elif fx < x:
+        return x - 1
+    else:
+        return x
 
 
 ####################################################################################################
@@ -33,84 +50,178 @@ class Expression(object):
 
     __rmul__ = __mul__
 
-    def __divmod__(self, other):
-        raise NotImplementedError("division, modulus not implemented")
-
     def __neg__(self):
-        raise NotImplementedError("neg not implemented")
-
-    def __truediv__(self, other):
-        raise NotImplementedError("truediv not implemented")
-
-    def __floordiv__(self, other):
-        raise NotImplementedError("floordiv not implemented")
+        return UnaryRelation('MINUS', self)
 
     def __pow__(self, power, modulo=None):
         return BinaryOperation('EXP', self, power)
 
-    def eval(self, variable_dict):
-        """evaluates the expression. variable_dict is expected to be a dict containing str:Expression or
-           Monomial:Expression pairs. The latter are constrained to be of single-variable type.
+    # def __divmod__(self, other):
+    #    raise NotImplementedError("division, modulus not implemented")
 
+    # def __truediv__(self, other):
+    #    raise NotImplementedError("truediv not implemented")
+
+    # def __floordiv__(self, other):
+    #    raise NotImplementedError("floordiv not implemented")
+
+    def eval(self, variable_dict):
         """
-        raise Exception("eval() unimplemented in " + str(type(self)))
+        evaluates the expression. variable_dict is expected to be a dict containing str:Expression or
+        Monomial:Expression pairs. The latter are constrained to be of single-variable type.
+
+        :param variable_dict: a dictionary of taking either single-term monomials or string (variable names) to ints
+        :return: evaluated expression
+        """
+        raise NotImplementedError("eval() unimplemented in " + str(type(self)))
 
     def is_constant(self):
-        raise Exception("is_constant() unimplemented in " + str(type(self)))
+        raise NotImplementedError("is_constant() unimplemented in " + str(type(self)))
 
     def as_c_expression(self):
-        raise Exception("as_c_expression() unimplemented in " + str(type(self)))
+        raise NotImplementedError("as_c_expression() unimplemented in " + str(type(self)))
 
     def as_polynomial(self):
-        raise Exception("as_polynomial() unimplemented in " + str(type(self)))
+        raise NotImplementedError("as_polynomial() unimplemented in " + str(type(self)))
 
-    def get_var_set(self):
+    def get_variable_set(self):
         """ returns a set containing all variable which occur in this expression """
-        raise Exception("get_var_set() unimplemented in " + str(type(self)))
+        raise NotImplementedError("get_var_set() unimplemented in " + str(type(self)))
+
+    def num_variables(self):
+        """ returns the number of variables which occur in this expression """
+        return len(self.get_variable_set())
+
+    def rename_variables(self, name_dict: Dict[str, str]):
+        """ rename variables """
+        raise NotImplementedError("rename_variables() unimplemented in " + str(type(self)))
+
+    def continuous_function_version(self, control_variable):
+        """
+        Wrap this equation with the 'continuity controller' i.e. return CONT(control_variable,self)
+        :param control_variable: variable or string
+        :return: functional continuous version
+        """
+        if self.is_constant():
+            return self
+
+        if isinstance(control_variable, str):
+            control_variable = Monomial.as_var(control_variable)
+
+        return Function('CONT', [control_variable, self])
+
+    ####################################################################################################
+    #
+    # the following method converts a system of equations into one which is "continuous" in the sense
+    # that application of the system does not change the per-coordinate values by more than 1. This is
+    # accomplished by a type of curve fitting. Fortunately, the formula for this
+    #
+    # g(x) = sum_{c\in \F_3^n} h(c) prod_{j=0}^n (1-(x_j-c_j)**2)
+    #
+    # (as seen in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24) admits a recursive
+    # formulation. That is, for a polynomial x_k = f_k(x_0,x_1,...,x_l) we can select one of the
+    # variables, say x_0 and reduce the polynomial each of 3-ways x_0=0, x_0=1, and x_0=2. This
+    # correspondingly divides the sum into those which have each of the 3 types of terms
+    # (1-(x_0-c_0)**2) for c_0=0, c_0=1, and c_0=2
+    #
+    # fortunately, (1-(x_j-0)**2)+(1-(x_j-1)**2)+(1-(x_j-2)**2) = 1 so if the evaluations of f become
+    # constant or even simply eliminate a variable, we need no longer consider that variable.
+    #
+    # recursion proceeds by eliminating variables in this manner, multiplying by the appropriate fitting
+    # term (1-(x_j-c_j)**2) (c_j being the evaluated value of x_j) on the way up.
+    #
+    # this comment is not really the place for a full proof of this method, but the proof is easily
+    # obtained from the above.
+    #
+    ####################################################################################################
+
+    def continuous_polynomial_version(self, control_variable):
+        if self.is_constant():
+            return self
+
+        if isinstance(control_variable, str):
+            control_variable = Monomial.as_var(control_variable)
+
+        # as the control variable is special (due to use in the 'h' function),
+        # we will need to go through the procedure for it separately, first
+        accumulator = Mod3Poly.zero()
+        for control_variable_value in range(3):
+            evaluated_poly = self.eval({control_variable: control_variable_value})
+            if isinstance(evaluated_poly, int) or evaluated_poly.is_constant():
+                computed_value = int(evaluated_poly)
+                continuous_value = h(control_variable_value, computed_value)
+                accumulator += continuous_value * (1 - (control_variable - control_variable_value) ** 2)
+            else:
+                accumulator += evaluated_poly._continuous_version_helper(control_variable_value) * \
+                               (1 - (control_variable - control_variable_value) ** 2)
+        return accumulator
+
+    def _continuous_version_helper(self, control_variable_value):
+        # find some free variable
+        free_variable = tuple(self.get_variable_set())[0]
+        if isinstance(free_variable, str):
+            free_variable = Monomial.as_var(free_variable)
+
+        # iterate over the ways of setting that variable: 0, 1, 2
+        accumulator = Mod3Poly.zero()
+        for free_variable_value in range(3):
+            evaluated_poly = self.eval({free_variable: free_variable_value})
+            if isinstance(evaluated_poly, int) or evaluated_poly.is_constant():
+                computed_value = int(evaluated_poly)
+                continuous_value = h(control_variable_value, computed_value)
+                accumulator += continuous_value * \
+                               (1 - (free_variable - free_variable_value) ** 2)
+            else:
+                accumulator += evaluated_poly._continuous_version_helper(control_variable_value) * \
+                               (1 - (free_variable - free_variable_value) ** 2)
+        return accumulator
+
+
+####################################################################################################
+
+def rename_helper(expression: Union[Expression, int], name_dict: Dict[str, str]):
+    if type(expression) == int:
+        return expression
+    else:
+        return expression.rename_variables(name_dict=name_dict)
 
 
 ####################################################################################################
 # actions on expressions, suitable for conversion to polynomial form. Not best for simulator.
-    
+
 def mod_3(n):
     return n % 3
 
+
 def not3(n):
-    value = 2 + 2*n
-    if type(value) == int or value.is_constant():
+    value = 2 + 2 * n
+    if isinstance(value, int) or value.is_constant():
         return mod_3(int(value))
     else:
         return value
+
 
 def max3(a, b):
-    value = a + b + 2*a*b + (a ** 2)*b + a*(b ** 2) + (a ** 2)*(b ** 2)
-    if type(value) == int or value.is_constant():
+    value = a + b + 2 * a * b + (a ** 2) * b + a * (b ** 2) + (a ** 2) * (b ** 2)
+    if isinstance(value, int) or value.is_constant():
         return mod_3(int(value))
     else:
         return value
+
 
 def min3(a, b):
-    value = a*b + 2*(a ** 2)*b + 2*a*(b ** 2) + 2*(a ** 2)*(b ** 2)
-    if type(value) == int or value.is_constant():
+    value = a * b + 2 * (a ** 2) * b + 2 * a * (b ** 2) + 2 * (a ** 2) * (b ** 2)
+    if isinstance(value, int) or value.is_constant():
         return mod_3(int(value))
     else:
         return value
 
 
-def h(x, fx):
-    """helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24"""
-    if fx > x:
-        return x + 1
-    elif fx < x:
-        return x - 1
-    else:
-        return x
-    
 def cont3(ctrl_var, formula):
-    """convert the expression expr into one which is 'continuous' in the
+    """convert the expression expr into one which is continuous in the
     control variable ctrl"""
     # handle case where the control variable is a constant
-    if type(ctrl_var) == int or ctrl_var.is_constant():
+    if isinstance(ctrl_var, int) or ctrl_var.is_constant():
         ctrl_var = int(ctrl_var) % 3
         if type(formula) == int or formula.is_constant():
             formula = int(formula) % 3
@@ -119,26 +230,30 @@ def cont3(ctrl_var, formula):
             return cont3_helper(ctrl_var, formula)
 
     # otherwise, the control variable must be just a variable
-    assert type(ctrl_var) == str or \
-      ( type(ctrl_var) == Monomial and len(ctrl_var.get_var_set()) == 1 )
+    assert type(ctrl_var) == str or (type(ctrl_var) == Monomial and len(ctrl_var.get_variable_set()) == 1)
 
-    # go through the whole buisness for the target variable first
+    # go through the whole business for the target variable first
     accumulator = Mod3Poly.zero()
     for base_value in range(3):
-        if not( type(formula) == int or formula.is_constant() ):
+        if type(formula) == int or formula.is_constant():
+            evaluated_poly = int(formula)
+        else:
             evaluated_poly = formula.eval({ctrl_var: base_value})
+
         if type(evaluated_poly) == int or evaluated_poly.is_constant():
             computed_value = int(evaluated_poly)
             continuous_value = h(base_value, computed_value)
-            accumulator += continuous_value*(1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+            accumulator += continuous_value * (1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
         else:
-            accumulator += cont3_helper(base_value, evaluated_poly) * (1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+            accumulator += cont3_helper(base_value, evaluated_poly) * (
+                    1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
     return accumulator
-    
+
+
 def cont3_helper(base_var_val, formula):
     """helper function for cont3, gets continuous version of the formula for variable var"""
-    # find some unevalued variable
-    var = tuple(formula.get_var_set())[0]
+    # find some unevaluated variable
+    var = tuple(formula.get_variable_set())[0]
 
     # iterate over the ways of setting that variable: 0, 1, 2
     accumulator = Mod3Poly.zero()
@@ -147,12 +262,12 @@ def cont3_helper(base_var_val, formula):
         if type(evaluated_poly) == int or evaluated_poly.is_constant():
             computed_value = int(evaluated_poly)
             continuous_value = h(base_var_val, computed_value)
-            accumulator += continuous_value*(1 - (Monomial.as_var(var) - value) ** 2)
+            accumulator += continuous_value * (1 - (Monomial.as_var(var) - value) ** 2)
         else:
             accumulator += cont3_helper(base_var_val, evaluated_poly) * (1 - (Monomial.as_var(var) - value) ** 2)
 
     return accumulator
-    
+
 
 ####################################################################################################
 
@@ -162,44 +277,62 @@ class Function(Expression):
         self._function_name = function_name
         self._expression_list = expression_list
 
+    def rename_variables(self, name_dict: Dict[str, str]):
+        renamed_parameters = [rename_helper(expr, name_dict) for expr in self._expression_list]
+        return Function(self._function_name, renamed_parameters)
+
     def eval(self, variable_dict):
         # evaluate function parameters
-        evaluated_expressions = [expr if type(expr) == int
+        evaluated_expressions = [expr if isinstance(expr, int)
                                  else expr.eval(variable_dict)
                                  for expr in self._expression_list]
         # simplify constants to ints, if possible
-        evaluated_expressions = [int(expr) if type(expr) == int or expr.is_constant()
+        evaluated_expressions = [int(expr) if isinstance(expr, int) or expr.is_constant()
                                  else expr
                                  for expr in evaluated_expressions]
 
         if self._function_name == 'MAX':
             assert len(evaluated_expressions) == 2, "wrong number of arguments for MAX"
-            exprOne, exprTwo = evaluated_expressions
+            expr_one, expr_two = evaluated_expressions
             # if it can be computed directly, do it. otherwise, return in function form
-            if type(exprOne) == int and type(exprTwo) == int:
-                exprOne = mod_3(exprOne)
-                exprTwo = mod_3(exprTwo)
-                return max(exprOne, exprTwo)
+            if type(expr_one) == int and type(expr_two) == int:
+                expr_one = mod_3(expr_one)
+                expr_two = mod_3(expr_two)
+                return max(expr_one, expr_two)
+            elif isinstance(expr_one, int) and expr_one == 2:
+                return 2
+            elif isinstance(expr_one, int) and expr_one == 0:
+                return expr_two
+            elif isinstance(expr_two, int) and expr_two == 2:
+                return 2
+            elif isinstance(expr_two, int) and expr_two == 0:
+                return expr_one
             else:
-                return Function('MAX', [exprOne, exprTwo])
+                return Function('MAX', [expr_one, expr_two])
         elif self._function_name == 'MIN':
             assert len(evaluated_expressions) == 2, "wrong number of arguments for MIN"
-            exprOne, exprTwo = evaluated_expressions
+            expr_one, expr_two = evaluated_expressions
             # if it can be computed directly, do it. otherwise, return in function form
-            if type(exprOne) == int and type(exprTwo) == int:
-                exprOne = mod_3(exprOne)
-                exprTwo = mod_3(exprTwo)
-                return min(exprOne, exprTwo)
+            if type(expr_one) == int and type(expr_two) == int:
+                expr_one = mod_3(expr_one)
+                expr_two = mod_3(expr_two)
+                return min(expr_one, expr_two)
+            elif isinstance(expr_one, int) and expr_one == 2:
+                return expr_two
+            elif isinstance(expr_one, int) and expr_one == 0:
+                return 0
+            elif isinstance(expr_two, int) and expr_two == 2:
+                return expr_one
+            elif isinstance(expr_two, int) and expr_two == 0:
+                return 0
             else:
-                return Function('MIN', [exprOne, exprTwo])
+                return Function('MIN', [expr_one, expr_two])
         elif self._function_name == 'CONT':
             assert len(evaluated_expressions) == 2, "wrong number of arguments for CONT"
             ctrl_var, expr = evaluated_expressions
-            if type(ctrl_var) == int and type(expr) == int:
-                ctrl_var = mod_3(ctrl_var)
-                expr = mod_3(expr)
-                return XXX
-            # cannot be computed directly, so return in function form
+            if isinstance(ctrl_var, int):
+                # TODO: check that ctrl_var is a variable (not something more complicated)
+                raise Exception("Unsupported; nonsense")
             return Function('CONT', [ctrl_var, expr])
         elif self._function_name == 'NOT':
             assert len(evaluated_expressions) == 1, "wrong number of arguments for NOT"
@@ -213,7 +346,7 @@ class Function(Expression):
             raise Exception("cannot evaluate unknown function " + self._function_name)
 
     def is_constant(self):
-        return all(type(expr) == int or expr.is_constant()
+        return all(isinstance(expr, int) or expr.is_constant()
                    for expr in self._expression_list)
 
     def __str__(self):
@@ -222,7 +355,7 @@ class Function(Expression):
     __repr__ = __str__
 
     def as_c_expression(self):
-        c_exprs = [str(expr) if type(expr) == int else expr.as_c_expression() for expr in self._expression_list]
+        c_exprs = [str(expr) if isinstance(expr, int) else expr.as_c_expression() for expr in self._expression_list]
 
         if self._function_name == 'MAX':
             func_name = 'mod3max'
@@ -238,7 +371,7 @@ class Function(Expression):
         return func_name + '(' + ",".join(c_exprs) + ')'
 
     def as_polynomial(self):
-        expressions_as_polynomials = [mod_3(expr) if type(expr) == int
+        expressions_as_polynomials = [mod_3(expr) if isinstance(expr, int)
                                       else expr.as_polynomial()
                                       for expr in self._expression_list]
 
@@ -252,7 +385,7 @@ class Function(Expression):
 
         elif self._function_name == 'CONT':
             assert len(expressions_as_polynomials) == 2, "wrong number of arguments for CONT"
-            return cont3(expressions_as_polynomials[0], expressions_as_polynomials[1])
+            return expressions_as_polynomials[1].continuous_polynomial_version(expressions_as_polynomials[0])
 
         elif self._function_name == 'NOT':
             assert len(expressions_as_polynomials) == 1, "wrong number of arguments for NOT"
@@ -261,27 +394,40 @@ class Function(Expression):
         else:
             raise Exception("cannot evaluate unknown function " + self._function_name + " as a polynomial")
 
-    def get_var_set(self):
+    def get_variable_set(self):
         var_set = set()
         for expr in self._expression_list:
-            if type(expr) != int:
-                var_set = var_set.union(expr.get_var_set())
+            if not isinstance(expr, int):
+                var_set = var_set.union(expr.get_variable_set())
         return var_set
 
 
 class BinaryOperation(Expression):
 
-    def __init__(self, relation_name, left_expression, right_expression):
-        self._relation_name = relation_name
-        self._left_expression = left_expression
-        self._right_expression = right_expression
+    def __init__(self, relation_name, left_expression: Union[Expression, int],
+                 right_expression: Union[Expression, int]):
+        self.relation_name = relation_name
+        self._left_expression: Union[Expression, int] = left_expression
+        self._right_expression: Union[Expression, int] = right_expression
+
+    def rename_variables(self, name_dict: Dict[str, str]):
+        renamed_left_expression = rename_helper(self._left_expression, name_dict)
+        renamed_right_expression = rename_helper(self._right_expression, name_dict)
+        return BinaryOperation(self.relation_name,
+                               left_expression=renamed_left_expression,
+                               right_expression=renamed_right_expression)
 
     def is_constant(self):
         return (type(self._left_expression) == int or self._left_expression.is_constant()) and \
                (type(self._right_expression) == int or self._right_expression.is_constant())
 
     def eval(self, variable_dict):
-        # evaluate parameters, making them ints if possible
+        """
+        evaluate parameters, making them ints if possible
+
+        :param variable_dict: a dictionary of taking either single-term monomials or string (variable names) to ints
+        :return: evaluated expression
+        """
         evaled_left_expr = self._left_expression if type(self._left_expression) == int \
             else self._left_expression.eval(variable_dict)
         evaled_left_expr = int(evaled_left_expr) \
@@ -294,34 +440,34 @@ class BinaryOperation(Expression):
             if type(evaled_right_expr) == int or evaled_right_expr.is_constant() \
             else evaled_right_expr
 
-        if self._relation_name == 'PLUS':
+        if self.relation_name == 'PLUS':
             return evaled_left_expr + evaled_right_expr
-        elif self._relation_name == 'MINUS':
+        elif self.relation_name == 'MINUS':
             return evaled_left_expr - evaled_right_expr
-        elif self._relation_name == 'TIMES':
-            return evaled_left_expr*evaled_right_expr
-        elif self._relation_name == 'EXP':
+        elif self.relation_name == 'TIMES':
+            return evaled_left_expr * evaled_right_expr
+        elif self.relation_name == 'EXP':
             return evaled_left_expr ** evaled_right_expr
         else:
-            raise Exception("cannot evaluate unknown binary op: " + self._relation_name)
+            raise Exception("cannot evaluate unknown binary op: " + self.relation_name)
 
     def __str__(self):
         short_relation_name = "?"
-        if self._relation_name == 'PLUS':
+        if self.relation_name == 'PLUS':
             short_relation_name = '+'
-        elif self._relation_name == 'MINUS':
+        elif self.relation_name == 'MINUS':
             short_relation_name = '-'
-        elif self._relation_name == 'TIMES':
+        elif self.relation_name == 'TIMES':
             short_relation_name = '*'
-        elif self._relation_name == 'EXP':
+        elif self.relation_name == 'EXP':
             short_relation_name = '^'
 
         left_side = str(self._left_expression)
-        if type(self._left_expression) == BinaryOperation:
+        if isinstance(self._left_expression, BinaryOperation):
             left_side = "(" + left_side + ")"
 
         right_side = str(self._right_expression)
-        if type(self._right_expression) == BinaryOperation:
+        if isinstance(self._right_expression, BinaryOperation):
             right_side = "(" + right_side + ")"
 
         return left_side + short_relation_name + right_side
@@ -339,42 +485,42 @@ class BinaryOperation(Expression):
         else:
             right_c_expr = self._right_expression.as_c_expression()
 
-        if self._relation_name == 'PLUS':
+        if self.relation_name == 'PLUS':
             return '(' + left_c_expr + ')+(' + right_c_expr + ')'
 
-        elif self._relation_name == 'MINUS':
+        elif self.relation_name == 'MINUS':
             return '(' + left_c_expr + ')-(' + right_c_expr + ')'
 
-        elif self._relation_name == 'TIMES':
+        elif self.relation_name == 'TIMES':
             return '(' + left_c_expr + ')*(' + right_c_expr + ')'
 
-        elif self._relation_name == 'EXP':
+        elif self.relation_name == 'EXP':
             return 'mod3pow(' + left_c_expr + ',' + right_c_expr + ')'
 
         else:
-            raise Exception("Unknown binary relation: " + self._relation_name)
+            raise Exception("Unknown binary relation: " + self.relation_name)
 
     def as_polynomial(self):
-        if type(self._left_expression) == int:
+        if isinstance(self._left_expression, int):
             left_poly = self._left_expression
         else:
             left_poly = self._left_expression.as_polynomial()
 
-        if type(self._right_expression) == int:
+        if isinstance(self._right_expression, int):
             right_poly = self._right_expression
         else:
             right_poly = self._right_expression.as_polynomial()
 
-        if self._relation_name == 'PLUS':
+        if self.relation_name == 'PLUS':
             return left_poly + right_poly
 
-        elif self._relation_name == 'MINUS':
+        elif self.relation_name == 'MINUS':
             return left_poly - right_poly
 
-        elif self._relation_name == 'TIMES':
-            return left_poly*right_poly
+        elif self.relation_name == 'TIMES':
+            return left_poly * right_poly
 
-        elif self._relation_name == 'EXP':
+        elif self.relation_name == 'EXP':
             # simplify the exponent = 0, 1 cases
             if type(right_poly) == int:
                 if right_poly == 0:
@@ -386,14 +532,14 @@ class BinaryOperation(Expression):
             else:
                 return left_poly ** right_poly
         else:
-            raise Exception("Unknown binary relation: " + self._relation_name)
+            raise Exception("Unknown binary relation: " + self.relation_name)
 
-    def get_var_set(self):
+    def get_variable_set(self):
         var_set = set()
-        if type(self._left_expression) != int:
-            var_set = var_set.union(self._left_expression.get_var_set())
-        if type(self._right_expression) != int:
-            var_set = var_set.union(self._right_expression.get_var_set())
+        if not isinstance(self._left_expression, int):
+            var_set = var_set.union(self._left_expression.get_variable_set())
+        if not isinstance(self._right_expression, int):
+            var_set = var_set.union(self._right_expression.get_variable_set())
         return var_set
 
 
@@ -403,12 +549,32 @@ class UnaryRelation(Expression):
         self._relation_name = relation_name
         self._expr = expr
 
-    def __str__(self) -> str:
-        shortRelName = str(self._relation_name)
+    def rename_variables(self, name_dict: Dict[str, str]):
+        return UnaryRelation(relation_name=self._relation_name,
+                             expr=rename_helper(self._expr, name_dict))
+
+    def is_constant(self):
+        return self._expr.is_constant()
+
+    def eval(self, variable_dict):
         if self._relation_name == 'MINUS':
-            shortRelName = '-'
-        return shortRelName + \
-               ("(" + str(self._expr) + ")" if type(self._expr) == BinaryOperation else str(self._expr))
+            if type(self._expr) == int:
+                return (-1) * self._expr
+            elif type(self._expr) == Expression:
+                evaluated_subexpression = self._expr.eval(variable_dict)
+                if type(evaluated_subexpression) == int or evaluated_subexpression.is_constant():
+                    return (-1) * int(evaluated_subexpression)
+                else:
+                    return (-1) * evaluated_subexpression
+        else:
+            raise Exception("UnaryRelation in bad state with unknown unary relation name")
+
+    def __str__(self) -> str:
+        short_rel_name = str(self._relation_name)
+        if self._relation_name == 'MINUS':
+            short_rel_name = '-'
+        return short_rel_name + (
+            "(" + str(self._expr) + ")" if type(self._expr) == BinaryOperation else str(self._expr))
 
     __repr__ = __str__
 
@@ -430,15 +596,15 @@ class UnaryRelation(Expression):
             poly = self._expr.as_polynomial()
 
         if self._relation_name == 'MINUS':
-            return - poly
+            return (-1) * poly
         else:
             raise Exception("Unknown unary relation: " + self._relation_name)
 
-    def get_var_set(self):
+    def get_variable_set(self):
         if type(self._expr) == int:
             return set()
         else:
-            return self._expr.get_var_set()
+            return self._expr.get_variable_set()
 
 
 ####################################################################################################
@@ -450,12 +616,27 @@ class Monomial(Expression):
         # copy over only those terms which actually appear
         self._power_dict = {str(var): power_dict[var] for var in power_dict if power_dict[var] != 0}
         for var in self._power_dict.keys():
-            #while self._power_dict[var] < 0:
+            # while self._power_dict[var] < 0:
             #    self._power_dict[var] += 2     <--- replace with below
-            assert self._power_dict[var] > 0 # b/c x^-1 isn't exactly x (i.e. when x=0)
-            #while self._power_dict[var] >= 3:
+            assert self._power_dict[var] > 0  # b/c x^-1 isn't exactly x (i.e. when x=0)
+            # while self._power_dict[var] >= 3:
             #    self._power_dict[var] -= 2     <--- replace with below
-            self._power_dict[var] = 1 + ((-1+self._power_dict[var]) % 2)
+            self._power_dict[var] = 1 + ((-1 + self._power_dict[var]) % 2)
+
+    def rename_variables(self, name_dict: Dict[str, str]):
+        # this ends up a little more complicated than I was originally thinking, b/c
+        # I would like to allow two variables to be updated to the same new name
+        renamed_dict = dict()
+        for variable, exponent in self._power_dict.items():
+            name = variable
+            if variable in name_dict:
+                name = name_dict[variable]
+            if name in renamed_dict:
+                renamed_dict[name] += self._power_dict[variable]
+                renamed_dict[name] = 1 + ((-1 + renamed_dict[name]) % 2)
+            else:
+                renamed_dict[name] = self._power_dict[variable]
+        return Monomial(power_dict=renamed_dict)
 
     def as_polynomial(self):
         return self
@@ -463,7 +644,13 @@ class Monomial(Expression):
     def is_constant(self):
         return len(self._power_dict) == 0
 
-    def eval(self, variable_dict):
+    def num_variables(self):
+        return len(self._power_dict)
+
+    def variable_list(self):
+        return self._power_dict.keys()
+
+    def eval(self, variable_dict: Dict):
         """evaluates the monomial. variable_dict is expected to be a dict containing str:Expression or
            Monomial:Expression pairs. The latter are constrained to be of single-variable type.
 
@@ -477,10 +664,11 @@ class Monomial(Expression):
             if type(variable) == str:
                 sanitized_variable_dict.update({variable: variable_dict[variable]})
             elif type(variable) == Monomial:
-                if len(variable._power_dict) != 1:
-                    raise Exception("We do not know how to evaluate monomials of zero or several variables")
+                if variable.num_variables() != 1:
+                    raise Exception(
+                        "We do not know how to evaluate monomials of zero or several variables to a single number")
                 else:
-                    variable_as_str = list(variable._power_dict.keys())[0]
+                    variable_as_str = list(variable.variable_list())[0]
                     sanitized_variable_dict.update({variable_as_str: variable_dict[variable]})
         variable_dict = sanitized_variable_dict
 
@@ -492,7 +680,7 @@ class Monomial(Expression):
                 accumulator *= Monomial.as_var(variable) ** self._power_dict[variable]
         return accumulator
 
-    def get_var_set(self):
+    def get_variable_set(self):
         """ returns a set containing all variable which occur in this monomial """
         return {var for var in self._power_dict if self._power_dict[var] != 0}
 
@@ -517,7 +705,7 @@ class Monomial(Expression):
                     result_power_dict[key] = other._power_dict[key]
             return Monomial(result_power_dict)
         elif isinstance(other, Mod3Poly) or isinstance(other, int):
-            return self.as_poly()*other
+            return self.as_poly() * other
         else:
             return BinaryOperation('TIMES', self, other)
             # raise TypeError("unsupported operand type(s) for *: '{}' and '{}'".format(self.__class__, type(other)))
@@ -525,7 +713,7 @@ class Monomial(Expression):
     __rmul__ = __mul__
 
     def __neg__(self):
-        return (-1)*self
+        return (-1) * self
 
     def __pow__(self, power, **kwargs):
         if type(power) == Mod3Poly and power.is_constant():
@@ -536,15 +724,15 @@ class Monomial(Expression):
         elif power == 1:
             return self
         elif power == 2:
-            return self*self
+            return self * self
         # Now handle higher powers; probably not going to happen too much for this application
 
         # (int) half power root
-        int_root = self ** (power//2)
-        if power%2 == 0:
-            return int_root*int_root
+        int_root = self ** (power // 2)
+        if power % 2 == 0:
+            return int_root * int_root
         else:
-            return int_root*int_root*self
+            return int_root * int_root * self
 
     def as_poly(self):
         """converts this monomial to a polynomial with only one term"""
@@ -557,6 +745,8 @@ class Monomial(Expression):
             return self.as_poly() + other.as_poly()
         elif type(other) == int:
             return self.as_poly() + other
+        elif isinstance(other, Expression):
+            return BinaryOperation("PLUS", self, other)
         else:
             raise TypeError("unsupported operand type(s) for +: '{}' and '{}'".format(self.__class__, type(other)))
 
@@ -564,10 +754,10 @@ class Monomial(Expression):
         return self + other
 
     def __sub__(self, other):
-        return self + ((-1)*other)
+        return self + ((-1) * other)
 
     def __rsub__(self, other):
-        return ((-1)*self) + other
+        return ((-1) * self) + other
 
     def __eq__(self, other):
         if type(other) == str:
@@ -615,7 +805,7 @@ class Monomial(Expression):
         # if we have a var that they don't we cannot be "smaller"
         if len(self_vars - other_vars) > 0:
             return False
-        # check that we do not exceed 
+        # check that we do not exceed
         for var in self_vars:
             if self._power_dict[var] > other._power_dict[var]:
                 return False
@@ -681,13 +871,17 @@ class Monomial(Expression):
 class Mod3Poly(Expression):
     """a sparse polynomial class"""
 
-    def __init__(self, coeffs):
+    def __init__(self, coeffs: Union[Dict, int]):
         if type(coeffs) == dict:
             self.coeff_dict = {monomial: coeffs[monomial] for monomial in coeffs if coeffs[monomial] != 0}
         elif type(coeffs) == int:
-            self.coeff_dict = {Monomial.unit(): (coeffs%3)}
+            self.coeff_dict = {Monomial.unit(): (coeffs % 3)}
         else:
             raise TypeError("unsupported initialization type for '{}': '{}'".format(self.__class__, type(coeffs)))
+
+    def rename_variables(self, name_dict: Dict[str, str]):
+        return Mod3Poly(coeffs={monomial.rename_variables(name_dict): coeff
+                                for monomial, coeff in self.coeff_dict.items()})
 
     @staticmethod
     def zero():
@@ -717,30 +911,32 @@ class Mod3Poly(Expression):
 
         accumulator = Mod3Poly.zero()
         for monomial, coeff in self.coeff_dict.items():
-            accumulator += coeff*monomial.eval(variable_dict)
+            accumulator += coeff * monomial.eval(variable_dict)
         return accumulator
 
-    def get_var_set(self):
+    def get_variable_set(self):
         """return a set containing all variables which occur in this polynomial"""
         var_set = set()
         for monomial in self.coeff_dict:
-            var_set = var_set.union(monomial.get_var_set())
+            var_set = var_set.union(monomial.get_variable_set())
         return var_set
 
     def __clear_zero_monomials(self):
         """purge unneeded data"""
-        self.coeff_dict = {monom: self.coeff_dict[monom] for monom in self.coeff_dict if self.coeff_dict[monom] != 0}
+        self.coeff_dict = {monomial: self.coeff_dict[monomial]
+                           for monomial in self.coeff_dict
+                           if self.coeff_dict[monomial] != 0}
         # assure at least one entry
         if len(self.coeff_dict) == 0:
             self.coeff_dict = {Monomial.unit(): 0}
 
     def is_constant(self):
-        # possibly unnecessary 
+        # possibly unnecessary
         self.__clear_zero_monomials()
-        num_nonzero_monom = len(self.coeff_dict)
-        if num_nonzero_monom > 1:
+        num_nonzero_monomial = len(self.coeff_dict)
+        if num_nonzero_monomial > 1:
             return False
-        elif num_nonzero_monom == 0:
+        elif num_nonzero_monomial == 0:
             return True
         else:
             # only one entry
@@ -756,22 +952,24 @@ class Mod3Poly(Expression):
         self.coeff_dict[index] = value
 
     def __add__(self, other):
-        if type(other) == int:
+        if isinstance(other, int):
             self_copy = Mod3Poly(self.coeff_dict)
-            self_copy[Monomial.unit()] = (self_copy[Monomial.unit()] + other)%3
+            self_copy[Monomial.unit()] = (self_copy[Monomial.unit()] + other) % 3
             return self_copy
-        elif type(other) == Mod3Poly:
-            self_copy = Mod3Poly(self.coeff_dict)
-            for key in other.coeff_dict.keys():
-                if key in self_copy.coeff_dict.keys():
-                    self_copy[key] = (self_copy[key] + other[key])%3
-                else:
-                    self_copy[key] = other[key]
-            return self_copy
-        elif type(other) == Monomial:
+        elif isinstance(other, Monomial):
             self_copy = Mod3Poly(self.coeff_dict)
             self_copy[other] += 1
             return self_copy
+        elif isinstance(other, Mod3Poly):
+            self_copy = Mod3Poly(self.coeff_dict)
+            for key in other.coeff_dict.keys():
+                if key in self_copy.coeff_dict.keys():
+                    self_copy[key] = (self_copy[key] + other[key]) % 3
+                else:
+                    self_copy[key] = other[key]
+            return self_copy
+        elif isinstance(other, Expression):
+            return BinaryOperation('PLUS', self, other)
         else:
             raise TypeError("unsupported operand type(s) for +: '{}' and '{}'".format(self.__class__, type(other)))
 
@@ -780,7 +978,7 @@ class Mod3Poly(Expression):
     def __sub__(self, other):
         if type(other) == int:
             self_copy = Mod3Poly(self.coeff_dict)
-            self_copy[Monomial.unit()] = (self_copy[Monomial.unit()] - other)%3
+            self_copy[Monomial.unit()] = (self_copy[Monomial.unit()] - other) % 3
             return self_copy
         elif type(other) == Mod3Poly or type(other) == Monomial:
             self_copy = Mod3Poly(self.coeff_dict)
@@ -788,7 +986,7 @@ class Mod3Poly(Expression):
                 other = other.as_poly()
             for key in other.coeff_dict.keys():
                 if key in self_copy.coeff_dict.keys():
-                    self_copy[key] = (self_copy[key] - other[key])%3
+                    self_copy[key] = (self_copy[key] - other[key]) % 3
                 else:
                     self_copy[key] = other[key]
             return self_copy
@@ -796,26 +994,23 @@ class Mod3Poly(Expression):
             raise TypeError("unsupported operand type(s) for +: '{}' and '{}'".format(self.__class__, type(other)))
 
     def __rsub__(self, other):
-        return other + ((-1)*self)
+        return other + ((-1) * self)
 
     def __mul__(self, other):
         if type(other) == int:
-            return Mod3Poly({key: (self.coeff_dict[key]*other)%3 for key in self.coeff_dict})
+            return Mod3Poly({key: (self.coeff_dict[key] * other) % 3 for key in self.coeff_dict})
         elif type(other) == Monomial:
-            return Mod3Poly({(other*monomial): self.coeff_dict[monomial] for monomial in self.coeff_dict})
+            return Mod3Poly({(other * monomial): self.coeff_dict[monomial] for monomial in self.coeff_dict})
         elif type(other) == Mod3Poly:
             accumulator = Mod3Poly.zero()
             for self_mono, other_mono in product(self.coeff_dict.keys(), other.coeff_dict.keys()):
-                monomial_prod = self_mono*other_mono
-                accumulator[monomial_prod] = (accumulator[monomial_prod] + self[self_mono]*other[other_mono])%3
+                monomial_prod = self_mono * other_mono
+                accumulator[monomial_prod] = (accumulator[monomial_prod] + self[self_mono] * other[other_mono]) % 3
             return accumulator
         else:
             return BinaryOperation('TIMES', self, other)
 
     __rmul__ = __mul__
-
-    def __neg__(self):
-        return (-1)*self
 
     def __pow__(self, power, **kwargs):
         if type(power) == Mod3Poly and power.is_constant():
@@ -826,15 +1021,15 @@ class Mod3Poly(Expression):
         elif power == 1:
             return self
         elif power == 2:
-            return self*self
+            return self * self
         # Now handle higher powers; probably not going to happen too much for this application
 
         # (int) half power root
-        int_root = self ** (power//2)
-        if power%2 == 0:
-            return int_root*int_root
+        int_root = self ** (power // 2)
+        if power % 2 == 0:
+            return int_root * int_root
         else:
-            return int_root*int_root*self
+            return int_root * int_root * self
 
     def __str__(self):
         accumulator = ""

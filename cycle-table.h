@@ -54,18 +54,18 @@ void print_cycle_counts(int runs)
     {
       if( cycle_counts[index] > 0 )
       {
-	if(first_cycle) {
-	  first_cycle = false;
-	} else {
-	  printf(",");
-	}
-	printf("{ \"id\":%u, \"length\":%u, \"count\":%u, \"percent\":%7.2f, ",
-	       cycle_ids[index],
-	       cycle_lengths[index],
-	       cycle_counts[index],
-	       (100.0*cycle_counts[index])/runs);
-	print_length_distribution(&length_counts[index]);
-	printf("}\n");
+	    if(first_cycle) {
+	        first_cycle = false;
+	    } else {
+	        printf(",");
+	    }
+	    printf("{ \"id\":%u, \"length\":%u, \"count\":%u, \"percent\":%7.2f, ",
+	           cycle_ids[index],
+	           cycle_lengths[index],
+	           cycle_counts[index],
+	           (100.0*cycle_counts[index])/runs);
+	    print_length_distribution(&length_counts[index]);
+	    printf("}\n");
       }
     }
   printf("]}\n");
