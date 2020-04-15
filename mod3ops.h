@@ -60,6 +60,8 @@ int mod3not(int a)
 /* helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24 */
 int mod3continuity(int control, int evaluated)
 {
+  control = mod3reduce(control);
+  evaluated = mod3reduce(evaluated);
   if( evaluated > control ) return control + 1;
   else if( evaluated < control ) return control - 1;
   else return control;
