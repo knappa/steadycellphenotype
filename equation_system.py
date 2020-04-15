@@ -287,10 +287,21 @@ def polynomial_output_parallel_helper(equation: Union[Expression, int]):
 
 class EquationSystem(object):
 
-    def __init__(self, formula_symbol_table=None, equations=None, target_variables=None):
-        self._formula_symbol_table = formula_symbol_table if formula_symbol_table is not None else []
-        self._equations: List[Union[int, Expression]] = equations if equations is not None else []
-        self._target_variables = target_variables if target_variables is not None else []
+    def __init__(self, lines: str = None, formula_symbol_table=None, equations=None, target_variables=None):
+        assert lines is None or \
+               (formula_symbol_table is None and equations is None and target_variables is None),\
+                "Must specify lines _or_ formula_symbol_table, equations, and target_variables"
+        if lines is None:
+            self._formula_symbol_table = formula_symbol_table if formula_symbol_table is not None else []
+            self._equations: List[Union[int, Expression]] = equations if equations is not None else []
+            self._target_variables = target_variables if target_variables is not None else []
+        else:
+            self._formula_symbol_table = []
+            self._equations: List[Union[int, Expression]] = []
+            self._target_variables = []
+            lines = lines.strip()
+            for line in lines.splitlines():
+                self.parse_and_add_equation(line)
 
     def as_poly_system(self) -> EquationSystem:
         formula_symbol_table = deepcopy(self._formula_symbol_table)
@@ -456,6 +467,7 @@ class EquationSystem(object):
                 self._target_varaibles = tuple(targets)
                 self._equations = tuple(equations)
                 self._count = 0
+
             def __next__(self):
                 if self._count < len(self._target_varaibles):
                     count = self._count

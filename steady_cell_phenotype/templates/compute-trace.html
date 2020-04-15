@@ -1,0 +1,47 @@
+{% extends "basic_template.html" %}
+{% block title %}
+{{ super() }}
+{% endblock %}
+{% block head %}
+{{ super() }}
+{% endblock %}
+{% block content %}
+
+<h1>Results</h1>
+
+
+<div class="w3-row-padding">
+    <div class="w3-container w3-margin w3-border-large">
+        <header class="w3-container w3-us-blue">
+            <h3>Trajectory</h3>
+        </header>
+        <div style="overflow-x: auto">
+            <table class="w3-table-all w3-centered  w3-hoverable">
+                <tr class="w3-us-blue">
+                    <th class="w3-us-red" style="position: absolute; width: 4em; left: 0;">Step</th>
+                    {% for variable in variables %}
+                    <th>{{ variable }}</th>
+                    {% endfor %}
+                </tr>
+                {% for edge in edge_list %}
+                <tr>
+                    <td class="w3-us-red" style="position: absolute; width: 4em; left: 0;">{{ loop.index0 }}</td>
+                    {% for variable in variables %}
+                    <td>{{ edge['source'][variable] }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </table>
+        </div>
+        <footer class="w3-container w3-us-red">
+            <div class="w3-half w3-center">Returns to step {{ back_to }}</div>
+            <div class="w3-half w3-center">Count {{ count }}</div>
+        </footer>
+        <center>
+            {{ trajectory_image }}
+        </center>
+    </div>
+
+</div>
+
+{% endblock %}

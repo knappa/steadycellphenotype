@@ -32,7 +32,13 @@ def main():
                         help='do not output polynomials, used by default when output is by simulator')
     parser.add_argument('-sim',
                         action='store_true',
-                        help='output C-language simulator program instead of formulae')
+                        help='output C-language simulator program')
+    parser.add_argument('-graph',
+                        action='store_true',
+                        help='use the graph-creation simulator')
+    parser.add_argument('-init-val',
+                        action='append', nargs='+',
+                        help="for simulators, fix initial values got some variables Ex: -init-val LIP 1")
     parser.add_argument('--count',
                         type=int,
                         help='number of random points tried by the simulator, default 1,000,000.\n' +
@@ -45,9 +51,6 @@ def main():
     parser.add_argument('-power', '--self-power', type=int,
                         help='gets polynomials for a power of the system. i.e. self-composition, power-1 times ('
                              'default: 1) ignored for simulator Warning: This can take a long time!')
-    parser.add_argument('-graph',
-                        action='store_true',
-                        help='use the graph-creation simulator')
 
     args = parser.parse_args()
 
@@ -69,7 +72,9 @@ def main():
 
     translate_symbol_names_to_xs = args.non_descriptive
 
-    # parse the file into a system of equations
+    ################################################################################
+    # parse the file into a system of equations and ensure consistency
+
     equation_system = EquationSystem()
     for line in in_formulae.splitlines():
         equation_system.parse_and_add_equation(line)
@@ -78,8 +83,38 @@ def main():
         print("Inconsistent system of equations!")
         sys.exit(-1)
 
+    ################################################################################
+    # parse initial values
+
+    initial_value_list = []
+    # these may come as several lists
+    if args.init_val is not None:
+        for sublist in args.init_val:
+            initial_value_list += sublist
+
+    # sanity check
+    if len(initial_value_list) % 2 != 0:
+        print("parse error on initial values, count of parameters")
+        sys.exit(-1)
+
+    initial_value_set_variables = initial_value_list[::2]
+    for variable_name in initial_value_set_variables:
+        if variable_name not in equation_system.symbol_table():
+            print("initial value set for variable not in system")
+            sys.exit(-1)
+
+    try:
+        initial_values = [int(val) % 3 for val in initial_value_list[1::2]]
+    except ValueError:
+        print("parse error on initial values, value is not an int")
+        sys.exit(-1)
+
+    initial_values = dict(zip(initial_value_set_variables, initial_values))
+
+    ################################################################################
     # impose continuity, if desired
     # TODO: non-polynomial continuity for the simulator?
+
     if not args.continuous and args.continuous_omit:
         print("Asked to omit continuity for system which was not continuous. This is probably an error; exiting.")
         sys.exit(-1)
@@ -91,7 +126,7 @@ def main():
             continuous_variables = all_variables
         equation_system = equation_system.continuous_system(continuous_vars=continuous_variables)
 
-    if args.sim:
+    if args.sim or args.graph:
         #################################################################
         # run the simulator
         #################################################################
@@ -107,7 +142,8 @@ def main():
         output_as_program(equation_system=equation_system,
                           output_file=args.outputfile,
                           num_runs=count,
-                          graph=use_graph)
+                          graph=use_graph,
+                          initial_values=initial_values)
     else:
         #################################################################
         # output polynomials
@@ -150,7 +186,7 @@ def output_as_formulae(equation_system, translate_symbol_names_to_xs=True, as_po
 
 ####################################################################################################
 
-def output_as_program(equation_system, output_file=None, num_runs=1_000_000, graph=False):
+def output_as_program(equation_system, output_file=None, num_runs=1_000_000, graph=False, initial_values=None):
     # get symbols, in order
     symbols = tuple(equation_system.target_variables())
 
@@ -187,6 +223,8 @@ int {function_name}({typed_param_list})
     variable_initialization = "\n".join(
         ["    int {name}_temp, {name} = {value} % 3;".format(name=symbol, value=int(formula))
          if isinstance(formula, int) or formula.is_constant() else
+         "    int {name}_temp, {name} = {value} % 3;".format(name=symbol, value=initial_values[symbol])
+         if symbol in initial_values else
          "    int {name}_temp, {name} = rand() % 3;".format(name=symbol)
          for symbol, formula in equation_system])
 
