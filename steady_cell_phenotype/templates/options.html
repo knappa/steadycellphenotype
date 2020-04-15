@@ -25,6 +25,20 @@
     selector.selectedIndex = "0";
   }
 
+  function hide_init_column() {
+    for (let button of document.getElementsByClassName('init-state-select'))
+      button.setAttribute("disabled", "disabled");
+  }
+
+  function show_init_column() {
+    for (let button of document.getElementsByClassName('init-state-select')) {
+      button.removeAttribute("disabled");
+      if (button.selectedIndex == 0)
+        button.selectedIndex = 2; // i.e. select '1'
+    }
+  }
+
+
 </script>
 {% endblock %}
 {% block content %}
@@ -35,19 +49,29 @@
     <div class="w3-container w3-margin w3-left-align" style="width:80%">
         <form class="w3-container" method="post" action="/compute/">
             <div class="w3-row-padding">
-                <table class="w3-table-all w3-margin w3-hoverable">
+                <table id='config-table' class="w3-table-all w3-margin w3-hoverable">
                     <tr class="w3-us-blue">
                         <th>Variable</th>
                         <th><input type="checkbox" name="all-continuous" onClick="toggle(this)"> Continuous</th>
                         <th>Forcing</th>
+                        <th>Initial State</th>
                     </tr>
                     {% for variable in variables %}
                     <tr>
                         <td>{{ variable }}</td>
-                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}" onclick="unset('{{variable}}')"></td>
+                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"
+                                   onclick="unset('{{variable}}')"></td>
                         <td>
                             <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
                                 <option selected value="None"></option>
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="2">2</option>
+                            </select>
+                        </td>
+                        <td>
+                            <select class="init-state-select" name="{{variable}}-init">
+                                <option selected disabled value="None"></option>
                                 <option value="0">0</option>
                                 <option value="1">1</option>
                                 <option value="2">2</option>
@@ -60,6 +84,7 @@
                     <div class="w3-container w3-cell w3-mobile">
                         <div class="w3-container">
                             <input type="radio" class="w3-radio w3-margin" id="cycles" name="action" value="cycles"
+                                   onclick="hide_init_column()"
                                    checked>
                             <label for="cycles">Sample fixed points and cycles <select name="num_samples">
                                 <option selected value="1000">1,000</option>
@@ -74,8 +99,15 @@
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
                         <input type="radio" class="w3-radio w3-margin" id="fixed_points" name="action"
+                               onclick="hide_init_column()"
                                value="fixed_points">
                         <label for="fixed_points">Find all fixed points</label>
+                    </div>
+                    <div class="w3-container w3-cell w3-mobile">
+                        <input type="radio" class="w3-radio w3-margin" id="trace_one" name="action"
+                               onclick="show_init_column()"
+                               value="trace_one">
+                        <label for="trace_one">Trace one state</label>
                     </div>
                 </div>
                 <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Compute">
@@ -83,4 +115,9 @@
         </form>
     </div>
 </center>
+
+<script>
+    hide_init_column()
+</script>
+
 {% endblock %}

@@ -161,6 +161,11 @@ def create_app(test_config=None):
                      for variable in variables
                      if request.form['{}-KO'.format(variable)] != 'None'}
 
+        # get initial state
+        init_state = {variable.strip(): request.form['{}-init'.format(variable)]
+                      for variable in variables
+                      if request.form['{}-init'.format(variable)] != 'None'}
+
         knockout_model = ""
         for variable, rhs in zip(variables, right_sides):
             if variable in knockouts:
@@ -175,14 +180,20 @@ def create_app(test_config=None):
             num_iterations = 0  # not going to waste any effort on garbage
 
         # decide which type of computation to run
-        if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points']:
+        if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points', 'trace_one']:
             response = make_response(error_report(
                 'The request was ill-formed, please go back to the main page and try again'))
             return response_set_model_cookie(response, model_state)
         elif request.form['action'] == 'cycles':
             return compute_cycles(model_state, knockout_model, variables, continuous, num_iterations)
-        else:  # request.form['action'] == 'fixed_points'
+        elif request.form['action'] == 'fixed_points':
             return compute_fixed_points(model_state, knockout_model, variables, continuous)
+        elif request.form['action'] == 'trace_one':
+            return compute_trace(model_state, knockout_model, variables, continuous, init_state)
+
+    def compute_trace(model_state, knockout_model, variables, continuous, init_state):
+        return "Not done yet!" + str(model_state) + str(knockout_model) + str(variables) + str(continuous) + str(
+            init_state)
 
     def compute_fixed_points(model_state, knockout_model, variables, continuous):
         """ Run the fixed-point finding computation """
