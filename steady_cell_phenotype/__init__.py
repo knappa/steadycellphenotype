@@ -162,10 +162,11 @@ def create_app(test_config=None):
                      if request.form['{}-KO'.format(variable)] != 'None'}
 
         # get initial state
-        init_state = {variable.strip(): request.form['{}-init'.format(variable)]
-                      for variable in variables
-                      if '{}-init'.format(variable) in request.form and
-                      request.form['{}-init'.format(variable)] != 'None'}
+        init_state = dict()
+        for variable in variables:
+            form_name = '{}-init'.format(variable)
+            if form_name in request.form and request.form[form_name] != 'None':
+                init_state[variable.strip()] = request.form[form_name]
 
         knockout_model = ""
         for variable, rhs in zip(variables, right_sides):
