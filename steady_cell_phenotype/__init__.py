@@ -164,7 +164,8 @@ def create_app(test_config=None):
         # get initial state
         init_state = {variable.strip(): request.form['{}-init'.format(variable)]
                       for variable in variables
-                      if request.form['{}-init'.format(variable)] != 'None'}
+                      if '{}-init'.format(variable) in request.form and
+                      request.form['{}-init'.format(variable)] != 'None'}
 
         knockout_model = ""
         for variable, rhs in zip(variables, right_sides):
@@ -190,6 +191,8 @@ def create_app(test_config=None):
             return compute_fixed_points(model_state, knockout_model, variables, continuous)
         elif request.form['action'] == 'trace_one':
             return compute_trace(model_state, knockout_model, variables, continuous, init_state)
+        else:
+            return str(request.form)
 
     ####################################################################################################
 
