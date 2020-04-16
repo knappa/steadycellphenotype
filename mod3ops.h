@@ -62,6 +62,7 @@ int mod3continuity(int control, int evaluated)
 {
   control = mod3reduce(control);
   evaluated = mod3reduce(evaluated);
+
   if( evaluated > control ) return control + 1;
   else if( evaluated < control ) return control - 1;
   else return control;
