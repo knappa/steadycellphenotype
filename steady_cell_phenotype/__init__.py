@@ -368,6 +368,12 @@ def create_app(test_config=None):
             cycle_list = list(combined_output.values())
             cycle_list.sort(key=lambda cycle: cycle['count'], reverse=True)
 
+            from collections import defaultdict
+            cycle_len_counts = defaultdict(lambda: 0)
+            for cycle in cycle_list:
+                cycle_len_counts[cycle['length']] += 1
+            cycle_len_counts = tuple(sorted(cycle_len_counts.items()))
+
             # create length distribution plots
             plt.rcParams['svg.fonttype'] = 'none'
             for cycle in combined_output:
@@ -387,7 +393,9 @@ def create_app(test_config=None):
                     combined_output[cycle]['image'] = Markup(image.read())
 
         # respond with the results-of-computation page
-        response = make_response(render_template('compute-cycles.html', cycles=cycle_list))
+        response = make_response(render_template('compute-cycles.html',
+                                                 cycles=cycle_list,
+                                                 cycle_len_counts=cycle_len_counts))
         return response_set_model_cookie(response, model_state)
 
     ####################################################################################################
