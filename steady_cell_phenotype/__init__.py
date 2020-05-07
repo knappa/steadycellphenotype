@@ -15,10 +15,15 @@ import string
 import subprocess
 import tempfile
 
+import matplotlib
 import matplotlib.pyplot as plt
+
+matplotlib.use('agg')
 from flask import Flask, render_template, request, make_response, Response, Markup
 from werkzeug.utils import secure_filename
 from equation_system import EquationSystem
+import networkx as nx
+
 
 def create_app(test_config=None):
     # create and configure the app
@@ -44,7 +49,6 @@ def create_app(test_config=None):
 
     @app.errorhandler(404)
     def page_not_found(error):
-        print(error)
         return render_template('page_not_found.html'), 404
 
     @app.route('/about/')
@@ -435,6 +439,7 @@ def create_app(test_config=None):
                                 '-i', tmp_dir_name + '/model.txt',
                                 '-o', tmp_dir_name + '/model.c'] + init_state_params + continuity_params,
                                capture_output=True)
+
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_c_process.stdout),
@@ -492,8 +497,10 @@ def create_app(test_config=None):
             edge_list = [{'source': dict(zip(equation_system.target_variables(),
                                              decode_int(edge['source'], num_variables))),
                           'target': dict(zip(equation_system.target_variables(),
-                                             decode_int(edge['target'], num_variables)))}
+                                             decode_int(edge['target'], num_variables))),
+                          'step': int(edge['step'])}
                          for edge in edge_list]
+            edge_list = sorted(edge_list, key=lambda edge: edge['step'])
 
             # find which one we return to:
             last_state = edge_list[-1]['target']
@@ -501,27 +508,25 @@ def create_app(test_config=None):
             num_vertices = len(vertices)
             returns_to_state = vertices.index(last_state)
 
-            import networkx as nx
+            # create the trace visualization
             g = nx.DiGraph()
-            for n in range(len(vertices)-1):
-                g.add_edge(n, n+1)
-            g.add_edge(num_vertices-1, returns_to_state)
+            for n in range(len(vertices) - 1):
+                g.add_edge(n, n + 1)
+            g.add_edge(num_vertices - 1, returns_to_state)
 
             # draw the damned thing
             plt.rcParams['svg.fonttype'] = 'none'
             plt.figure(figsize=(4, 3))
-            #pos = nx.spring_layout(g)
-            nx.draw_kamada_kawai(g,connectionstyle='arc3,rad=0.2', with_labels=True)
+            # pos = nx.spring_layout(g)
+            nx.draw_kamada_kawai(g, connectionstyle='arc3,rad=0.2', with_labels=True)
             plt.title('Trajectory')
-            plt.tight_layout()
             image_filename = 'trajectory.svg'
             plt.savefig(tmp_dir_name + '/' + image_filename, transparent=True, pad_inches=0.0)
             plt.close()
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 trajectory_image = Markup(image.read())
 
-
-            #return html.escape(str(edge_list)).replace('\n', '<br>').replace(' ', '&nbsp')
+            # return html.escape(str(edge_list)).replace('\n', '<br>').replace(' ', '&nbsp')
 
             # respond with the results-of-computation page
             response = make_response(render_template('compute-trace.html',
@@ -531,7 +536,6 @@ def create_app(test_config=None):
                                                      count=len(edge_list),
                                                      trajectory_image=trajectory_image))
             return response_set_model_cookie(response, model_state)
-
 
     ####################################################################################################
     # model options page

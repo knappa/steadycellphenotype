@@ -34,6 +34,7 @@ int main(int argc, char** argv)
     current_int_rep = compute_int_rep({param_list});
 
     /* computational loop */
+    int step = 0;
     do
       {{
 
@@ -47,10 +48,11 @@ int main(int argc, char** argv)
         next_int_rep = compute_int_rep({param_list});
 
 	/* insert into table */
-	record_link(current_int_rep, next_int_rep);
+	record_link(current_int_rep, next_int_rep, step);
 
 	/* advance representative to next state */
 	current_int_rep = next_int_rep;
+	step++;
 	
       }}
     while (!is_present(current_int_rep));

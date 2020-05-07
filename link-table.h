@@ -4,6 +4,7 @@
 typedef struct {
   unsigned __int128 source;
   unsigned __int128 target;
+  unsigned int step;
   bool occupied;
 } link;
 
@@ -18,7 +19,7 @@ void init_table()
 }
 
 
-void record_link(unsigned __int128 source, unsigned __int128 target)
+void record_link(unsigned __int128 source, unsigned __int128 target, unsigned int step)
 {
 
   /* if we will exceed 2/3 of table, rebalance */
@@ -39,7 +40,7 @@ void record_link(unsigned __int128 source, unsigned __int128 target)
 	{
 	  if( old_links[index].occupied )
 	    {
-	      record_link(old_links[index].source, old_links[index].target);
+	      record_link(old_links[index].source, old_links[index].target, old_links[index].step);
 	    }
 	}
 
@@ -59,6 +60,7 @@ void record_link(unsigned __int128 source, unsigned __int128 target)
 	links[index].source = source;
 	links[index].target = target;
 	links[index].occupied = true;
+	links[index].step = step;
 	num_recorded++;
 	return;
       }
@@ -126,6 +128,8 @@ void print_table_summary(void)
 
 	  printf(" , \"target\": ");
 	  printf("\""); print128(links[index].target); printf("\"");
+
+      printf(" , \"step\": %u", links[index].step);
 
 	  printf(" }");
 	}

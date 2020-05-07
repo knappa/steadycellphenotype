@@ -104,12 +104,13 @@ def main():
             sys.exit(-1)
 
     try:
+        set_variables = initial_value_list[::2]
         initial_values = [int(val) % 3 for val in initial_value_list[1::2]]
     except ValueError:
         print("parse error on initial values, value is not an int")
         sys.exit(-1)
 
-    initial_values = dict(zip(initial_value_set_variables, initial_values))
+    initial_values = dict(zip(set_variables, initial_values))
 
     ################################################################################
     # impose continuity, if desired
