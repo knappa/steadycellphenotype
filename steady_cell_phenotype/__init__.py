@@ -311,7 +311,7 @@ def create_app(test_config=None):
 
             # randomized search is kind of silly if you ask for more iterations than there are actual states
             # so go to the complete search mode in this case.
-            if 3**len(variables) < num_iterations:
+            if 3**len(variables) <= num_iterations:
                 complete_search_params = ['-complete_search']
             else:
                 complete_search_params = []
@@ -400,10 +400,13 @@ def create_app(test_config=None):
                 with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                     combined_output[cycle]['image'] = Markup(image.read())
 
+        performed_complete_search = simulator_output['complete_search'] if 'complete_search' in simulator_output else False
+                    
         # respond with the results-of-computation page
         response = make_response(render_template('compute-cycles.html',
                                                  cycles=cycle_list,
-                                                 cycle_len_counts=cycle_len_counts))
+                                                 cycle_len_counts=cycle_len_counts,
+                                                 complete_results=performed_complete_search))
         return response_set_model_cookie(response, model_state)
 
     ####################################################################################################

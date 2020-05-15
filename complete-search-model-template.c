@@ -37,7 +37,7 @@ int main(int argc, char** argv)
 
   bool first_cycle = true;
     
-  printf("{{ \"cycles\": [");
+  printf("{{ \"complete_search\": true, \"cycles\": [");
 
   {state_for_loops_head}
 
