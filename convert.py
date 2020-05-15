@@ -226,7 +226,7 @@ int {function_name}({typed_param_list})
          if isinstance(formula, int) or formula.is_constant() else
          "    int {name}_temp, {name} = {value} % 3;".format(name=symbol, value=initial_values[symbol])
          if symbol in initial_values else
-         "    int {name}_temp, {name} = rand() % 3;".format(name=symbol)
+         "    int {name}_temp, {name} = random() % 3;".format(name=symbol)
          for symbol, formula in equation_system])
 
     # run update, saving to temp variables

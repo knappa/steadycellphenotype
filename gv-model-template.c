@@ -19,7 +19,7 @@ unsigned __int128 compute_int_rep({typed_param_list})
 int main(int argc, char** argv)
 {{
   /* initialize random number generator */
-  srand(time(0));
+  srandom(time(0));
 
   init_table();
   

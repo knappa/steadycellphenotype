@@ -40,7 +40,7 @@ int main(int argc, char** argv)
   printf("{{ \"cycles\": [");
     
   /* initialize random number generator */
-  srand(time(0));
+  srandom(time(0));
 
   flush_filter(cycle_filter);
 
