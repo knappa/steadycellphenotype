@@ -6,8 +6,8 @@
 
 /* filter for finding repeat in sequences */
 u_int64_t sequence_filter[FILTER_SIZE];
-/* filter for states which are inside of cycles */
-u_int64_t cycle_filter[FILTER_SIZE];
+/* filter for states which have been visited */
+u_int64_t state_filter[FILTER_SIZE];
 
 void flush_filter(u_int64_t* filter)
 {

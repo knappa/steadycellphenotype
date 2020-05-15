@@ -27,6 +27,7 @@ int main(int argc, char** argv)
   {{
 
     /* declare and initialize variables */
+{declare_variables}
 {initialize_variables}
 
     /* initialize hashes */

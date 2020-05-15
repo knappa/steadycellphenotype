@@ -221,12 +221,15 @@ int {function_name}({typed_param_list})
         output_functions.append(function)
 
     # random state initializer
+    variable_declaration = "\n".join(
+        ["    int {name}_temp, {name};".format(name=symbol)
+         for symbol, formula in equation_system])
     variable_initialization = "\n".join(
-        ["    int {name}_temp, {name} = {value} % 3;".format(name=symbol, value=int(formula))
+        ["    {name} = {value} % 3;".format(name=symbol, value=int(formula))
          if isinstance(formula, int) or formula.is_constant() else
-         "    int {name}_temp, {name} = {value} % 3;".format(name=symbol, value=initial_values[symbol])
+         "    {name} = {value} % 3;".format(name=symbol, value=initial_values[symbol])
          if symbol in initial_values else
-         "    int {name}_temp, {name} = random() % 3;".format(name=symbol)
+         "    {name} = random() % 3;".format(name=symbol)
          for symbol, formula in equation_system])
 
     # run update, saving to temp variables
@@ -300,6 +303,7 @@ int {function_name}({typed_param_list})
                                    copy6=copy_temp_vars(indent=6),
                                    copy8=copy_temp_vars(indent=8),
                                    copy12=copy_temp_vars(indent=12),
+                                   declare_variables=variable_declaration,
                                    initialize_variables=variable_initialization,
                                    print_state=print_state(),
                                    variable_stash=state_stash(indent=4),

@@ -42,21 +42,30 @@ int main(int argc, char** argv)
   /* initialize random number generator */
   srandom(time(0));
 
-  flush_filter(cycle_filter);
-
+  flush_filter(state_filter);
+  
   for(int runs = 0; runs < NUM_RUNS; runs++)
   {{
 
     flush_filter(sequence_filter);
 
-    /* declare and initialize variables */
-{initialize_variables}
-
-    /* initialize hashes */
+    /* declare variables */
+{declare_variables}
+    /* declare hash variables */
     unsigned long int hash_one, hash_two, hash_three;
-    hash_one   = compute_hash_one  ({param_list});
-    hash_two   = compute_hash_two  ({param_list});
-    hash_three = compute_hash_three({param_list});
+
+    do
+      {{
+	/* initialize variables */
+{initialize_variables}
+ 	/* initialize hashes */
+        hash_one   = compute_hash_one  ({param_list});
+	hash_two   = compute_hash_two  ({param_list});
+	hash_three = compute_hash_three({param_list});
+
+	/* bloom filter will sometimes give false positives to 'is_marked', so give a 50% of accepting anyway */
+	}}
+    while (is_marked(state_filter, hash_one, hash_two, hash_three) && random() % 2 == 0);
 
     int transition_count = 0;
 
@@ -65,8 +74,9 @@ int main(int argc, char** argv)
       {{
         transition_count++;
 
-        /* record state in bloom filter */
+        /* record state in bloom filters */
         mark(sequence_filter, hash_one, hash_two, hash_three);
+	mark(state_filter, hash_one, hash_two, hash_three);
 
         /* compute next iteration, storing in temp variables */
 {compute_next8}

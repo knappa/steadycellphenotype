@@ -24,6 +24,11 @@ from werkzeug.utils import secure_filename
 from equation_system import EquationSystem
 import networkx as nx
 
+def html_encode(msg):
+    if type(msg) is not str:
+        msg = msg.decode()
+    return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
+
 
 def create_app(test_config=None):
     # create and configure the app
@@ -344,17 +349,19 @@ def create_app(test_config=None):
                 subprocess.run([compiler, '-O3', tmp_dir_name + '/model.c', '-o', tmp_dir_name + '/model'],
                                capture_output=True)
             if compilation_process.returncode != 0:
-                response = make_response(error_report(
-                    'Error running compiler!\n{}\n{}'.format(compilation_process.stdout.decode(),
-                                                             compilation_process.stderr.decode())))
+                with open(tmp_dir_name + '/model.c', 'r') as source_file:
+                    response = make_response(error_report(
+                        'Error running compiler!\n{}\n{}\n{}'.format(html_encode(compilation_process.stdout),
+                                                                     html_encode(compilation_process.stderr),
+                                                                     html_encode(source_file.read()))))
                 return response_set_model_cookie(response, model_state)
 
             simulation_process = \
                 subprocess.run([tmp_dir_name + '/model'], capture_output=True)
             if simulation_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running simulator!\n{}\n{}'.format(simulation_process.stdout.decode(),
-                                                              simulation_process.stderr.decode())))
+                    'Error running simulator!\n{}\n{}'.format(html_encode(simulation_process.stdout),
+                                                              html_encode(simulation_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             simulator_output = json.loads(simulation_process.stdout.decode())
