@@ -221,11 +221,6 @@ def create_app(test_config=None):
                 model_file.write(knockout_model)
                 model_file.write('\n')
 
-            def error_msg_parse(msg):
-                if type(msg) is not str:
-                    msg = msg.decode()
-                return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
-
             # convert the model to polynomials
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
@@ -241,8 +236,8 @@ def create_app(test_config=None):
 
             if convert_to_poly_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_poly_process.stdout),
-                                                              error_msg_parse(convert_to_poly_process.stderr))))
+                    'Error running converter!\n{}\n{}'.format(html_encode(convert_to_poly_process.stdout),
+                                                              html_encode(convert_to_poly_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
@@ -262,9 +257,9 @@ def create_app(test_config=None):
                 with open(tmp_dir_name + '/model-polys.txt', 'r') as poly_file:
                     response = make_response(error_report(
                         'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
-                            error_msg_parse(find_steady_states_process.stdout),
-                            error_msg_parse(find_steady_states_process.stderr),
-                            error_msg_parse(poly_file.read()))))
+                            html_encode(find_steady_states_process.stdout),
+                            html_encode(find_steady_states_process.stderr),
+                            html_encode(poly_file.read()))))
                 return response_set_model_cookie(response, model_state)
 
             def process_line(line):
@@ -301,17 +296,11 @@ def create_app(test_config=None):
 
     def compute_cycles(model_state, knockout_model, variables, continuous, num_iterations):
         """ Run the cycle finding simulation """
-        # Oh, this seems so very ugly
         # TODO: better integrating, thinking more about security
         with tempfile.TemporaryDirectory() as tmp_dir_name:
             with open(tmp_dir_name + '/model.txt', 'w') as model_file:
                 model_file.write(knockout_model)
                 model_file.write('\n')
-
-            def error_msg_parse(msg):
-                if type(msg) is not str:
-                    msg = msg.decode()
-                return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
 
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
@@ -319,16 +308,24 @@ def create_app(test_config=None):
                                                         if not continuous[variable]]
             else:
                 continuity_params = ['-c']
+
+            # randomized search is kind of silly if you ask for more iterations than there are actual states
+            # so go to the complete search mode in this case.
+            if 3**len(variables) < num_iterations:
+                complete_search_params = ['-complete_search']
+            else:
+                complete_search_params = []
+
             convert_to_c_process = \
                 subprocess.run([os.getcwd() + '/convert.py', '-sim',
                                 '--count', str(num_iterations),
                                 '-i', tmp_dir_name + '/model.txt',
-                                '-o', tmp_dir_name + '/model.c'] + continuity_params,
+                                '-o', tmp_dir_name + '/model.c'] + continuity_params + complete_search_params,
                                capture_output=True)
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_c_process.stdout),
-                                                              error_msg_parse(convert_to_c_process.stderr))))
+                    'Error running converter!\n{}\n{}'.format(html_encode(convert_to_c_process.stdout),
+                                                              html_encode(convert_to_c_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             # copy the header files over
@@ -422,11 +419,6 @@ def create_app(test_config=None):
                 model_file.write(knockout_model)
                 model_file.write('\n')
 
-            def error_msg_parse(msg):
-                if type(msg) is not str:
-                    msg = msg.decode()
-                return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
-
             non_continuous_vars = [variable for variable in variables if not continuous[variable]]
             if len(non_continuous_vars) > 0:
                 continuity_params = ['-c', '-comit'] + [variable for variable in variables
@@ -449,8 +441,8 @@ def create_app(test_config=None):
 
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running converter!\n{}\n{}'.format(error_msg_parse(convert_to_c_process.stdout),
-                                                              error_msg_parse(convert_to_c_process.stderr))))
+                    'Error running converter!\n{}\n{}'.format(html_encode(convert_to_c_process.stdout),
+                                                              html_encode(convert_to_c_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             # copy the header files over
@@ -471,16 +463,16 @@ def create_app(test_config=None):
                                capture_output=True)
             if compilation_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running compiler!\n{}\n{}'.format(compilation_process.stdout.decode(),
-                                                             compilation_process.stderr.decode())))
+                    'Error running compiler!\n{}\n{}'.format(html_encode(compilation_process.stdout),
+                                                             html_encode(compilation_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             simulation_process = \
                 subprocess.run([tmp_dir_name + '/model'], capture_output=True)
             if simulation_process.returncode != 0:
                 response = make_response(error_report(
-                    'Error running simulator!\n{}\n{}'.format(simulation_process.stdout.decode(),
-                                                              simulation_process.stderr.decode())))
+                    'Error running simulator!\n{}\n{}'.format(html_encode(simulation_process.stdout),
+                                                              html_encode(simulation_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
             simulator_output = json.loads(simulation_process.stdout.decode())

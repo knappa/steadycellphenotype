@@ -36,6 +36,9 @@ def main():
     parser.add_argument('-graph',
                         action='store_true',
                         help='use the graph-creation simulator')
+    parser.add_argument('-complete_search',
+                        action='store_true',
+                        help='completely search the state-space')
     parser.add_argument('-init-val',
                         action='append', nargs='+',
                         help="for simulators, fix initial values got some variables Ex: -init-val LIP 1")
@@ -127,7 +130,7 @@ def main():
             continuous_variables = all_variables
         equation_system = equation_system.continuous_system(continuous_vars=continuous_variables)
 
-    if args.sim or args.graph:
+    if args.sim or args.graph or args.complete_search:
         #################################################################
         # run the simulator
         #################################################################
@@ -139,11 +142,13 @@ def main():
             equation_system = equation_system.as_poly_system()
 
         use_graph = args.graph is not None and args.graph
+        do_complete_search = args.complete_search is not None and args.complete_search
 
         output_as_program(equation_system=equation_system,
                           output_file=args.outputfile,
                           num_runs=count,
                           graph=use_graph,
+                          complete_search=do_complete_search,
                           initial_values=initial_values)
     else:
         #################################################################
@@ -187,7 +192,8 @@ def output_as_formulae(equation_system, translate_symbol_names_to_xs=True, as_po
 
 ####################################################################################################
 
-def output_as_program(equation_system, output_file=None, num_runs=1_000_000, graph=False, initial_values=None):
+def output_as_program(equation_system, output_file=None, num_runs=1_000_000,
+                      graph=False, complete_search=False, initial_values=None):
     # get symbols, in order
     symbols = tuple(equation_system.target_variables())
 
@@ -220,16 +226,37 @@ int {function_name}({typed_param_list})
 
         output_functions.append(function)
 
-    # random state initializer
+    # declarations of state variables
     variable_declaration = "\n".join(
         ["    int {name}_temp, {name};".format(name=symbol)
          for symbol, formula in equation_system])
+    
+    # random state initializer
     variable_initialization = "\n".join(
         ["    {name} = {value} % 3;".format(name=symbol, value=int(formula))
          if isinstance(formula, int) or formula.is_constant() else
          "    {name} = {value} % 3;".format(name=symbol, value=initial_values[symbol])
          if symbol in initial_values else
          "    {name} = random() % 3;".format(name=symbol)
+         for symbol, formula in equation_system])
+
+    # deterministic search for loops
+    state_for_loops_head = " ".join(
+        [ " int {name}_init = {value} % 3; ".format(name=symbol, value=int(formula))
+         if isinstance(formula, int) or formula.is_constant() else
+         "  int {name}_init = {value} % 3;".format(name=symbol, value=initial_values[symbol])
+         if symbol in initial_values else
+         "for(int {name}_init=0; {name}_init < 3; {name}_init++ ) {{ ".format(name=symbol)
+         for symbol, formula in equation_system ])
+
+    state_for_loops_tail = " ".join(
+        [" "
+         if isinstance(formula, int) or formula.is_constant() or symbol in initial_values else
+         "}"
+         for symbol, formula in equation_system ])
+    
+    fixed_variable_initialization = "\n".join(
+        ["    {name} = {name}_init;".format(name=symbol)
          for symbol, formula in equation_system])
 
     # run update, saving to temp variables
@@ -285,6 +312,9 @@ int {function_name}({typed_param_list})
         # alternate for graph!
         with open('gv-model-template.c', 'r') as file:
             template = file.read()
+    elif complete_search:
+        with open('complete-search-model-template.c', 'r') as file:
+            template = file.read()
     else:
         # load the "big" template
         with open('model-template.c', 'r') as file:
@@ -308,7 +338,10 @@ int {function_name}({typed_param_list})
                                    print_state=print_state(),
                                    variable_stash=state_stash(indent=4),
                                    neq_check=neq_check(indent=4),
-                                   num_runs=num_runs)
+                                   num_runs=num_runs,
+                                   state_for_loops_head=state_for_loops_head,
+                                   state_for_loops_tail=state_for_loops_tail,
+                                   fixed_variable_initialization=fixed_variable_initialization)
 
     if output_file:
         try:
