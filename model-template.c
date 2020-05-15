@@ -63,9 +63,9 @@ int main(int argc, char** argv)
 	hash_two   = compute_hash_two  ({param_list});
 	hash_three = compute_hash_three({param_list});
 
-	/* bloom filter will sometimes give false positives to 'is_marked', so give a 50% of accepting anyway */
+	/* bloom filter will sometimes give false positives to 'is_marked', so give a p=1/16 of accepting anyway */
 	}}
-    while (is_marked(state_filter, hash_one, hash_two, hash_three) && random() % 2 == 0);
+    while (is_marked(state_filter, hash_one, hash_two, hash_three) && random() % 16 != 0);
 
     int transition_count = 0;
 
