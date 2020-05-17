@@ -140,7 +140,10 @@ int main(int argc, char** argv)
 	}} else {{
 	  printf(",");
 	}}
-	printf("{{ \"length\":%u, \"id\":%u, ", cycle_length, cycle_hash);
+	printf("{{ \"length\":%u, ", cycle_length);
+	printf("\"id\":\"");
+	print128(cycle_hash);
+	printf("\", ");
 	
         /* print the newly found cycle */
         printf("\"cycle\": [");

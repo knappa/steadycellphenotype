@@ -361,7 +361,13 @@ def create_app(test_config=None):
                                                               html_encode(simulation_process.stderr))))
                 return response_set_model_cookie(response, model_state)
 
-            simulator_output = json.loads(simulation_process.stdout.decode())
+            try: 
+                simulator_output = json.loads(simulation_process.stdout.decode())
+            except json.decoder.JSONDecodeError:
+                response = make_response(error_report(
+                    'Error decoding simulator output!\n{}\n{}'.format(html_encode(simulation_process.stdout),
+                                                                      html_encode(simulation_process.stderr))))
+                return response_set_model_cookie(response, model_state)
 
             # somewhat redundant data in the two fields, combine them, indexed by id
             combined_output = {

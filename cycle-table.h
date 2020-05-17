@@ -1,15 +1,16 @@
 #include <stdbool.h>
+#include <stdint.h>
 #include "length-count-array.h"
 
 #define TABLE_SIZE 65536
 
-unsigned long int cycle_ids[TABLE_SIZE];
+unsigned __int128 cycle_ids[TABLE_SIZE];
 u_int64_t cycle_lengths[TABLE_SIZE];
 u_int64_t cycle_counts[TABLE_SIZE];
 path_length_count length_counts[TABLE_SIZE];
 
 /* returns true if the cycle is new */
-bool record_cycle(unsigned long int hash_code, int cycle_length, int path_length_to_cycle)
+bool record_cycle(unsigned __int128 hash_code, int cycle_length, int path_length_to_cycle)
 {
   
   int index = (int) ( hash_code % TABLE_SIZE );
@@ -46,6 +47,12 @@ bool record_cycle(unsigned long int hash_code, int cycle_length, int path_length
   return true; /* I guess? */
 }
 
+void print128(unsigned __int128 value)
+{
+  printf("0x%lX", (uint64_t)(value>>64));
+  printf("%08lX", (uint64_t)value);
+}
+
 void print_cycle_counts(int runs)
 {
   printf("\"counts\":[");
@@ -59,8 +66,11 @@ void print_cycle_counts(int runs)
 	    } else {
 	        printf(",");
 	    }
-	    printf("{ \"id\":%u, \"length\":%u, \"count\":%u, \"percent\":%7.2f, ",
-	           cycle_ids[index],
+	    printf("{ \"id\":\"");
+	    print128(cycle_ids[index]);
+	    printf("\", ");
+	    
+	    printf("\"length\":%lX, \"count\":%lX, \"percent\":%7.2f, ",
 	           cycle_lengths[index],
 	           cycle_counts[index],
 	           (100.0*cycle_counts[index])/runs);

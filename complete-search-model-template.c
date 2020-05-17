@@ -10,6 +10,13 @@
 
 {update_functions}
 
+unsigned __int128 compute_int_rep({typed_param_list})
+{{
+  unsigned __int128 accumulator = 0;
+{accumulate_hash_one}
+  return accumulator;
+}}
+
 unsigned long int compute_hash_one({typed_param_list})
 {{
   unsigned long int accumulator = 0;
@@ -84,19 +91,13 @@ int main(int argc, char** argv)
 {variable_stash}
 
     int cycle_length = 0;
-    /* generate some of the elementary symmetric functions of the hashes
-     * of the positions, these will be summed to create the hash for the cycle
-     */
-    int cycle_hash_symmetric_functions[10] = {{0}}; // initializes to _all_ zeros
+    unsigned __int128 cycle_hash = compute_int_rep({param_list});
+    
     do
       {{
         cycle_length++;
-        int position_hash = compute_hash_one({param_list});
-        for(int index = 9; index > 0; index--)
-        {{
-          cycle_hash_symmetric_functions[index] += position_hash * cycle_hash_symmetric_functions[index-1];
-        }}
-        cycle_hash_symmetric_functions[0] += position_hash;
+	unsigned __int128 next_state_hash = compute_int_rep({param_list});
+        cycle_hash = cycle_hash < next_state_hash ? cycle_hash : next_state_hash;
 
         /* compute next iteration, storing in temp variables */
 {compute_next8}
@@ -114,9 +115,6 @@ int main(int argc, char** argv)
 	continue;
       }}
 
-    int cycle_hash = 0;
-    for(int index =0; index < 10; index++) cycle_hash += cycle_hash_symmetric_functions[index];
-
     /* record this cycle */
     int path_length_to_cycle = transition_count - cycle_length;
     bool new_cycle = record_cycle(cycle_hash, cycle_length, path_length_to_cycle);
@@ -128,7 +126,10 @@ int main(int argc, char** argv)
 	}} else {{
 	  printf(",");
 	}}
-	printf("{{ \"length\":%u, \"id\":%u, ", cycle_length, cycle_hash);
+	printf("{{ \"length\":%u, ", cycle_length);
+	printf("\"id\":\"");
+	print128(cycle_hash);
+	printf("\", ");
 	
         /* print the newly found cycle */
         printf("\"cycle\": [");
