@@ -70,7 +70,7 @@ void print_cycle_counts(int runs)
 	    print128(cycle_ids[index]);
 	    printf("\", ");
 	    
-	    printf("\"length\":%lX, \"count\":%lX, \"percent\":%7.2f, ",
+	    printf("\"length\":%ld, \"count\":%ld, \"percent\":%7.2f, ",
 	           cycle_lengths[index],
 	           cycle_counts[index],
 	           (100.0*cycle_counts[index])/runs);
