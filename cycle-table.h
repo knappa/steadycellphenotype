@@ -1,6 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "length-count-array.h"
+#include <inttypes.h>
 
 #define TABLE_SIZE 65536
 
@@ -49,8 +50,8 @@ bool record_cycle(unsigned __int128 hash_code, int cycle_length, int path_length
 
 void print128(unsigned __int128 value)
 {
-  printf("0x%lX", (uint64_t)(value>>64));
-  printf("%08lX", (uint64_t)value);
+  printf("%"PRIu64, (uint64_t)(value>>64));
+  printf("%08"PRIu64, (uint64_t)value);
 }
 
 void print_cycle_counts(int runs)

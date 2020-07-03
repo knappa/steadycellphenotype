@@ -242,11 +242,11 @@ int {function_name}({typed_param_list})
 
     # deterministic search for loops
     state_for_loops_head = " ".join(
-        [ " int {name}_init = {value} % 3; ".format(name=symbol, value=int(formula))
+        [ " int {name}_init_search = {value} % 3; ".format(name=symbol, value=int(formula))
          if isinstance(formula, int) or formula.is_constant() else
-         "  int {name}_init = {value} % 3;".format(name=symbol, value=initial_values[symbol])
+         "  int {name}_init_search = {value} % 3;".format(name=symbol, value=initial_values[symbol])
          if symbol in initial_values else
-         "for(int {name}_init=0; {name}_init < 3; {name}_init++ ) {{ ".format(name=symbol)
+         "for(int {name}_init_search = 0; {name}_init_search < 3; {name}_init_search++ ) {{ ".format(name=symbol)
          for symbol, formula in equation_system ])
 
     state_for_loops_tail = " ".join(
@@ -256,7 +256,7 @@ int {function_name}({typed_param_list})
          for symbol, formula in equation_system ])
     
     fixed_variable_initialization = "\n".join(
-        ["    {name} = {name}_init;".format(name=symbol)
+        ["    {name} = {name}_init_search;".format(name=symbol)
          for symbol, formula in equation_system])
 
     # run update, saving to temp variables
