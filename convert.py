@@ -2,8 +2,9 @@
 # Copyright Adam C. Knapp 2018-2020
 # License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 #
-# A cross-compiler, from a 3 state dynamical system written in MAX/MIN/NOT formulae to its canonical
-# mod-3 polynomial representation or to a C-language simulator
+# A cross-compiler, from a 3 state dynamical system written in MAX/MIN/NOT
+# formulae to its canonical mod-3 polynomial representation or to a C-language
+# simulator
 
 import argparse
 import os

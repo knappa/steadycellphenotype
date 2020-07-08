@@ -255,7 +255,7 @@ def evaluate_parallel_helper(pair, mapping_dict):
         return variable_name, expression.eval(mapping_dict)
 
 
-def continuity_parallel_helper(control_variable, equation: Expression, continuous_vars=None):
+def continuity_parallel_helper(control_variable, equation: Expression, continuous_vars):
     """
     Because python won't let you use lambdas in multiprocessing
     :param control_variable:

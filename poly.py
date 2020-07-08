@@ -217,56 +217,56 @@ def min3(a, b):
         return value
 
 
-def cont3(ctrl_var, formula):
-    """convert the expression expr into one which is continuous in the
-    control variable ctrl"""
-    # handle case where the control variable is a constant
-    if isinstance(ctrl_var, int) or ctrl_var.is_constant():
-        ctrl_var = int(ctrl_var) % 3
-        if type(formula) == int or formula.is_constant():
-            formula = int(formula) % 3
-            return h(ctrl_var, formula)
-        else:
-            return cont3_helper(ctrl_var, formula)
+# def cont3(ctrl_var, formula):
+#     """convert the expression expr into one which is continuous in the
+#     control variable ctrl"""
+#     # handle case where the control variable is a constant
+#     if isinstance(ctrl_var, int) or ctrl_var.is_constant():
+#         ctrl_var = int(ctrl_var) % 3
+#         if type(formula) == int or formula.is_constant():
+#             formula = int(formula) % 3
+#             return h(ctrl_var, formula)
+#         else:
+#             return cont3_helper(ctrl_var, formula)
 
-    # otherwise, the control variable must be just a variable
-    assert type(ctrl_var) == str or (type(ctrl_var) == Monomial and len(ctrl_var.get_variable_set()) == 1)
+#     # otherwise, the control variable must be just a variable
+#     assert type(ctrl_var) == str or (type(ctrl_var) == Monomial and len(ctrl_var.get_variable_set()) == 1)
 
-    # go through the whole business for the target variable first
-    accumulator = Mod3Poly.zero()
-    for base_value in range(3):
-        if type(formula) == int or formula.is_constant():
-            evaluated_poly = int(formula)
-        else:
-            evaluated_poly = formula.eval({ctrl_var: base_value})
+#     # go through the whole business for the target variable first
+#     accumulator = Mod3Poly.zero()
+#     for base_value in range(3):
+#         if type(formula) == int or formula.is_constant():
+#             evaluated_poly = int(formula)
+#         else:
+#             evaluated_poly = formula.eval({ctrl_var: base_value})
 
-        if type(evaluated_poly) == int or evaluated_poly.is_constant():
-            computed_value = int(evaluated_poly)
-            continuous_value = h(base_value, computed_value)
-            accumulator += continuous_value * (1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
-        else:
-            accumulator += cont3_helper(base_value, evaluated_poly) * (
-                    1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
-    return accumulator
+#         if type(evaluated_poly) == int or evaluated_poly.is_constant():
+#             computed_value = int(evaluated_poly)
+#             continuous_value = h(base_value, computed_value)
+#             accumulator += continuous_value * (1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+#         else:
+#             accumulator += cont3_helper(base_value, evaluated_poly) * (
+#                     1 - (Monomial.as_var(ctrl_var) - base_value) ** 2)
+#     return accumulator
 
 
-def cont3_helper(base_var_val, formula):
-    """helper function for cont3, gets continuous version of the formula for variable var"""
-    # find some unevaluated variable
-    var = tuple(formula.get_variable_set())[0]
+# def cont3_helper(base_var_val, formula):
+#     """helper function for cont3, gets continuous version of the formula for variable var"""
+#     # find some unevaluated variable
+#     var = tuple(formula.get_variable_set())[0]
 
-    # iterate over the ways of setting that variable: 0, 1, 2
-    accumulator = Mod3Poly.zero()
-    for value in range(3):
-        evaluated_poly = formula.eval({var: value})
-        if type(evaluated_poly) == int or evaluated_poly.is_constant():
-            computed_value = int(evaluated_poly)
-            continuous_value = h(base_var_val, computed_value)
-            accumulator += continuous_value * (1 - (Monomial.as_var(var) - value) ** 2)
-        else:
-            accumulator += cont3_helper(base_var_val, evaluated_poly) * (1 - (Monomial.as_var(var) - value) ** 2)
+#     # iterate over the ways of setting that variable: 0, 1, 2
+#     accumulator = Mod3Poly.zero()
+#     for value in range(3):
+#         evaluated_poly = formula.eval({var: value})
+#         if type(evaluated_poly) == int or evaluated_poly.is_constant():
+#             computed_value = int(evaluated_poly)
+#             continuous_value = h(base_var_val, computed_value)
+#             accumulator += continuous_value * (1 - (Monomial.as_var(var) - value) ** 2)
+#         else:
+#             accumulator += cont3_helper(base_var_val, evaluated_poly) * (1 - (Monomial.as_var(var) - value) ** 2)
 
-    return accumulator
+#     return accumulator
 
 
 ####################################################################################################

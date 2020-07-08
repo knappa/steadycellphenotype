@@ -447,7 +447,7 @@ def create_app(test_config=None):
                                 '-i', tmp_dir_name + '/model.txt',
                                 '-o', tmp_dir_name + '/model.c'] + init_state_params + continuity_params,
                                capture_output=True)
-
+            
             if convert_to_c_process.returncode != 0:
                 response = make_response(error_report(
                     'Error running converter!\n{}\n{}'.format(html_encode(convert_to_c_process.stdout),
