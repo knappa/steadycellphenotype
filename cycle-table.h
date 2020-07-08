@@ -70,11 +70,16 @@ void print_cycle_counts(int runs)
 	    printf("{ \"id\":\"");
 	    print128(cycle_ids[index]);
 	    printf("\", ");
+
+	    printf("\"length\":%lu, \"count\":%lu, ",
+		   cycle_lengths[index], cycle_counts[index]);
 	    
-	    printf("\"length\":%lu, \"count\":%lu, \"percent\":%7.2f, ",
-	           cycle_lengths[index],
-	           cycle_counts[index],
-	           (100.0*cycle_counts[index])/runs);
+	    float percent = (100.0*cycle_counts[index])/runs;
+	    if(percent > 0.01) {
+	      printf("\"percent\":%.2f, ", percent);
+	    } else {
+	      printf("\"percent\":%.2e, ", percent);
+	    }
 	    print_length_distribution(&length_counts[index]);
 	    printf("}\n");
       }
