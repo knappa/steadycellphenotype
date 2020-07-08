@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <inttypes.h>
 
 typedef struct {
   unsigned __int128 source;
@@ -106,8 +107,8 @@ bool is_present(unsigned __int128 source)
 
 void print128(unsigned __int128 value)
 {
-  printf("0x%lX", (uint64_t)(value>>64));
-  printf("%08lX", (uint64_t)value);
+  printf("0x%"PRIX64, (uint64_t)(value>>64));
+  printf("%016"PRIX64, (uint64_t)value);
 }
 
 void print_table_summary(void)

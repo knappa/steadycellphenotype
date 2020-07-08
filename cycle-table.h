@@ -50,8 +50,8 @@ bool record_cycle(unsigned __int128 hash_code, int cycle_length, int path_length
 
 void print128(unsigned __int128 value)
 {
-  printf("%"PRIu64, (uint64_t)(value>>64));
-  printf("%08"PRIu64, (uint64_t)value);
+  printf("0x%"PRIX64, (uint64_t)(value>>64));
+  printf("%016"PRIX64, (uint64_t)value);
 }
 
 void print_cycle_counts(int runs)
@@ -71,7 +71,7 @@ void print_cycle_counts(int runs)
 	    print128(cycle_ids[index]);
 	    printf("\", ");
 	    
-	    printf("\"length\":%ld, \"count\":%ld, \"percent\":%7.2f, ",
+	    printf("\"length\":%lu, \"count\":%lu, \"percent\":%7.2f, ",
 	           cycle_lengths[index],
 	           cycle_counts[index],
 	           (100.0*cycle_counts[index])/runs);
