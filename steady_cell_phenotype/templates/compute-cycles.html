@@ -65,7 +65,8 @@
 {% for cycle in cycles %}{{ cycle['length'] }}	{{ cycle['percent'] }}
 {% for state in cycle['cycle'] %}		{% for key in state %}{{ state[key] }}	{% endfor %}
 {% endfor %}
-{% endfor %}</textarea>
+{% endfor %}
+</textarea>
         <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Download tsv">
     </form>
 
