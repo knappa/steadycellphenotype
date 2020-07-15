@@ -11,37 +11,43 @@
 
 
 <div class="w3-row-padding">
-    <div class="w3-container w3-margin w3-border-large">
-        <header class="w3-container w3-us-blue">
-            <h3>Trajectory</h3>
-        </header>
-        <div style="overflow-x: auto">
-            <table class="w3-table-all w3-centered  w3-hoverable">
-                <tr class="w3-us-blue">
-                    <th class="w3-us-red" style="position: absolute; width: 4em; left: 0;">Step</th>
-                    {% for variable in variables %}
-                    <th>{{ variable }}</th>
-                    {% endfor %}
-                </tr>
-                {% for edge in edge_list %}
-                <tr>
-                    <td class="w3-us-red" style="position: absolute; width: 4em; left: 0;">{{ loop.index0 }}</td>
-                    {% for variable in variables %}
-                    <td>{{ edge['source'][variable] }}</td>
-                    {% endfor %}
-                </tr>
-                {% endfor %}
-            </table>
-        </div>
-        <footer class="w3-container w3-us-red">
-            <div class="w3-half w3-center">Returns to step {{ back_to }}</div>
-            <div class="w3-half w3-center">Count {{ count }}</div>
-        </footer>
-        <center>
-            {{ trajectory_image }}
-        </center>
+  <div class="w3-container w3-margin w3-border-large">
+    <header class="w3-container w3-us-blue">
+      {% if num_edge_lists == 1 %}
+      <h3>Trajectory</h3>
+      {% else %}
+      <h3>Trajectories</h3>
+      {% endif %}
+    </header>
+    <div style="overflow-x: auto">
+      {% for edge_list, return_state, source_labels, count in trajectories %}
+      <table class="w3-table-all w3-centered  w3-hoverable">
+        <tr class="w3-us-blue">
+          <th class="w3-us-red" style="position: absolute; width: 4em; left: 0;">State</th>
+          {% for variable in variables %}
+          <th>{{ variable }}</th>
+          {% endfor %}
+        </tr>
+        {% for edge in edge_list %}
+        <tr>
+          <td class="w3-us-red" style="position: absolute; width: 4em; left: 0;">{{ source_labels[loop.index0] }}</td>
+          {% for variable in variables %}
+          <td>{{ edge['source'][variable] }}</td>
+          {% endfor %}
+        </tr>
+        {% endfor %}
+      </table>
+      <footer class="w3-container w3-us-red">
+	<div class="w3-half w3-center">Returns to step {{ return_state }}</div>
+	<div class="w3-half w3-center">Count {{ count }}</div>
+      </footer>
     </div>
-
+      {% endfor %}
+    <center>
+      {{ trajectory_image }}
+    </center>
+  </div>
+  
 </div>
 
 {% endblock %}

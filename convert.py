@@ -109,7 +109,7 @@ def main():
 
     try:
         set_variables = initial_value_list[::2]
-        initial_values = [int(val) % 3 for val in initial_value_list[1::2]]
+        initial_values = [int(val) % 3 for val in initial_value_list[1::2] ]
     except ValueError:
         print("parse error on initial values, value is not an int")
         sys.exit(-1)
