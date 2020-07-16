@@ -7,9 +7,10 @@ import matplotlib
 import matplotlib.pyplot as plt
 
 matplotlib.use('agg')
-from flask import Markup, make_response
+from flask import Markup, make_response, Response
 from equation_system import EquationSystem
 import networkx as nx
+import numpy as np
 
 from ._util import *
 
@@ -116,6 +117,83 @@ def run_model_variable_init_vals(init_state, knockout_model, variables, continuo
         return edge_lists
 
 
+def connected_component_layout(g: nx.DiGraph):
+    """
+    lay out a graph with a single connected component,
+    returns dictionary of positions and width/height of bounding box
+    """
+
+    # get attractor (fixed point or cycle)
+    attractor_set = next(nx.attracting_components(g))
+    cycle_len = len(attractor_set)
+
+    # no guarantee the attractor set is in the proper order:
+    base_point = next(iter(attractor_set))
+    cycle = [base_point]
+    # in python 3.8+ you have assignment expressions:
+    # while (next_point := list(g.successors(cycle[-1]))[0]) != base_point:
+    #    cycle.append(next_point)
+    next_point = list(g.successors(cycle[-1]))[0]
+    while next_point != base_point:
+        cycle.append(next_point)
+        next_point = list(g.successors(cycle[-1]))[0]
+
+    pos = dict()
+
+    # Note: networkx has 'node_size'==300 but it is unclear what units those are
+    def recurse_layout(succ, level, max_theta, min_theta):
+        predecessors = [predecessor
+                        for predecessor in g.predecessors(succ)
+                        if predecessor != succ and predecessor not in pos]
+        if len(predecessors) == 0:
+            return
+        delta_theta = (max_theta - min_theta) / len(predecessors)
+        for n, predecessor in enumerate(predecessors):
+            theta = min_theta + (n + 0.5) * delta_theta
+            pos[predecessor] = level * np.array([np.cos(theta),
+                                                 np.sin(theta)])
+            recurse_layout(predecessor, level + 1, min_theta + (n + 1) * delta_theta, min_theta + n * delta_theta)
+
+    # lay out the cycle:
+    if cycle_len == 1:
+        pos[base_point] = np.array([0.0, 0.0])
+        recurse_layout(base_point, 1, 2 * np.pi, 0)
+    else:
+        for n, point in enumerate(cycle):
+            theta = 2 * np.pi * (n + 0.5) / cycle_len
+            pos[point] = np.array([np.cos(theta), np.sin(theta)])
+        for n, point in enumerate(cycle):
+            recurse_layout(point, 2,
+                           2 * np.pi * (n + 1) / cycle_len,
+                           2 * np.pi * n / cycle_len)
+    # move corner
+    pos_array = np.array(list(pos.values()))
+    offset = np.min(pos_array, axis=0)
+    pos = {node: pt - offset for node, pt in pos.items()}
+    return pos, np.max(pos_array, axis=0) - offset
+
+
+def graph_layout(g):
+    # lay out connected components, in bounding boxes. then offset
+    components_layouts = [connected_component_layout(nx.subgraph_view(g, filter_node=lambda node: node in cpnt_verts))
+                          for cpnt_verts in nx.weakly_connected_components(g)]
+    pos = dict()
+    corner = np.array([0.0, 0.0])
+    running_y = 0.0
+    for cmpnt_pos, geom in components_layouts:
+        running_y = max(running_y, geom[1])
+        for node in cmpnt_pos:
+            pos[node] = cmpnt_pos[node] + corner
+        corner += np.array([geom[0] + 1.0, 0])
+        print(geom[0])
+        if corner[0] > 20.0:
+            corner[0] = 0
+            corner[1] += running_y
+            running_y = 0.0
+    return pos
+    # return pos
+
+
 def compute_trace(model_state, knockout_model, variables, continuous, init_state):
     """ Run the cycle finding simulation for an initial state """
     # TODO: initially copied from compute_cycles, should look for code duplication and refactoring
@@ -128,6 +206,11 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
                                               continuous,
                                               model_state,
                                               equation_system)
+
+    # can return reponses, if there is an error, return any such error response
+    for edge in edge_lists:
+        if isinstance(edge, Response):
+            return edge
 
     def to_key(edge):
         return frozenset(edge.items())
@@ -157,13 +240,21 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
             target = to_key(edge['target'])
             g.add_edge(labels[source], labels[target])
 
+    # lay out the graph
+    pos = graph_layout(g)
+
+    # get overall geometry
+    pos_array = np.array(list(pos.values()))
+    width, height = np.max(pos_array, axis=0) - np.min(pos_array, axis=0)
+
     # draw the damned thing
     plt.rcParams['svg.fonttype'] = 'none'
-    plt.figure(figsize=(4, 3))
-    #nx.draw_kamada_kawai(g, connectionstyle='arc3,rad=0.2', with_labels=True)
-    nx.draw_spring(g,
-                   #connectionstyle='arc3,rad=0.2',
-                   with_labels=True)
+    figheight = min(3, max(100, width / height))
+    plt.figure(figsize=(4, figheight))
+    # nx.draw_kamada_kawai(g, connectionstyle='arc3,rad=0.2', with_labels=True)
+    nx.draw(g, pos=pos,
+            # connectionstyle='arc3,rad=0.2',
+            with_labels=True)
     plt.title('Trajectory')
     image_filename = 'trajectory.svg'
     with tempfile.TemporaryDirectory() as tmp_dir_name:
