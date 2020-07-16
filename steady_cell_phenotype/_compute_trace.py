@@ -161,9 +161,9 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
     plt.rcParams['svg.fonttype'] = 'none'
     plt.figure(figsize=(4, 3))
     #nx.draw_kamada_kawai(g, connectionstyle='arc3,rad=0.2', with_labels=True)
-    nx.draw_spectral(g,
-                     #connectionstyle='arc3,rad=0.2',
-                     with_labels=True)
+    nx.draw_spring(g,
+                   #connectionstyle='arc3,rad=0.2',
+                   with_labels=True)
     plt.title('Trajectory')
     image_filename = 'trajectory.svg'
     with tempfile.TemporaryDirectory() as tmp_dir_name:
