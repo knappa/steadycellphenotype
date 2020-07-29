@@ -105,10 +105,16 @@
                         <label for="fixed_points">Find all fixed points</label>
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
-                        <input type="radio" class="w3-radio w3-margin" id="trace_one" name="action"
-                               onclick="show_init_column()"
-                               value="trace_one">
-                        <label for="trace_one">Trace one state</label>
+			<div class="w3-container w3-mobile">
+			  <input type="radio" class="w3-radio w3-margin" id="trace" name="action"
+				 onclick="show_init_column()"
+				 value="trace">
+                          <label for="trace" >Trace state(s)</label>
+			</div>
+			<div class="w3-container w3-mobile">
+			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes">
+			  <label for="trace-nearby">Include nearby states</label>
+			</div>
                     </div>
                 </div>
                 <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Compute">

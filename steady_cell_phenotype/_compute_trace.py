@@ -32,7 +32,7 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, m
         if len(init_state) > 0:
             init_state_params += ['-init-val']
             for key, value in init_state.items():
-                init_state_params += [key, value]
+                init_state_params += [key, str(value)]
 
         convert_to_c_process = \
             subprocess.run([os.getcwd() + '/convert.py', '-graph',
@@ -91,30 +91,61 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, m
     return edge_list
 
 
-def run_model_variable_init_vals(init_state, knockout_model, variables, continuous, model_state, equation_system):
+def run_model_variable_init_vals(init_state, knockout_model, variables, continuous, model_state, equation_system, check_nearby):
     """ Run the model on possibly *'ed sets of initial conditions """
-    # find any *'ed variables
-    variable_states = [k for k in init_state if init_state[k] == '*']
 
-    if len(variable_states) == 0:
-        # if there aren't any, just run the model
-        return [
-            run_model_with_init_val(init_state, knockout_model, variables, continuous, model_state, equation_system)
-            ]
-    else:
-        # in there are, get one and try all possible values. Recurse.
-        variable_state = variable_states[0]
-        edge_lists = []
-        for val in range(3):
-            var_init_state = init_state.copy()
-            var_init_state[variable_state] = str(val)
-            edge_lists += run_model_variable_init_vals(var_init_state,
-                                                       knockout_model,
-                                                       variables,
-                                                       continuous,
-                                                       model_state,
-                                                       equation_system)
-        return edge_lists
+    # deal with any *'ed variables
+    def get_states(init_state, variable_states):
+        if len(variable_states) == 0:
+            return [init_state]
+        else:
+            init_states = []
+            for val in range(3):
+                state = init_state.copy()
+                state[variable_states[0]] = val
+                init_states += get_states(state, variable_states[1:])
+            return init_states
+    variable_states = [k for k in init_state if init_state[k] == '*']
+    init_states = get_states(init_state, variable_states)
+    
+    if check_nearby:
+        nearby_states = []
+        for state in init_states:
+            if state not in nearby_states:
+                nearby_states.append(state)
+            for variable in variables:
+                if str(state[variable]) == '0':
+                    near_state = state.copy()
+                    near_state[variable] = '1'
+                    if near_state not in nearby_states:
+                        nearby_states.append(near_state)
+                elif str(state[variable]) == '1':
+                    near_state = state.copy()
+                    near_state[variable] = '0'
+                    if near_state not in nearby_states:
+                        nearby_states.append(near_state)
+                    near_state = state.copy()
+                    near_state[variable] = '2'
+                    if near_state not in nearby_states:
+                        nearby_states.append(near_state)
+                elif str(state[variable]) == '2':
+                    near_state = state.copy()
+                    near_state[variable] = '1'
+                    if near_state not in nearby_states:
+                        nearby_states.append(near_state)
+                else:
+                    assert False, "invalid state!: '" + str(state[variable]) + "' " + str(type(state[variable]))
+        init_states = nearby_states
+
+    edge_lists = []
+    for state in init_states:
+        edge_lists.append(run_model_with_init_val(state,
+                                                  knockout_model,
+                                                  variables,
+                                                  continuous,
+                                                  model_state,
+                                                  equation_system))
+    return edge_lists
 
 
 def connected_component_layout(g: nx.DiGraph):
@@ -147,12 +178,12 @@ def connected_component_layout(g: nx.DiGraph):
                         if predecessor != succ and predecessor not in pos]
         if len(predecessors) == 0:
             return
-        delta_theta = (max_theta - min_theta) / len(predecessors)
+        delta_theta = (max_theta - min_theta) / (len(predecessors)+1)
         for n, predecessor in enumerate(predecessors):
-            theta = min_theta + (n + 0.5) * delta_theta
+            theta = min_theta + (n + 1) * delta_theta
             pos[predecessor] = level * np.array([np.cos(theta),
                                                  np.sin(theta)])
-            recurse_layout(predecessor, level + 1, min_theta + (n + 1) * delta_theta, min_theta + n * delta_theta)
+            recurse_layout(predecessor, level + 1, min_theta + (n + 1.5) * delta_theta, min_theta + (n+0.5) * delta_theta)
 
     # lay out the cycle:
     if cycle_len == 1:
@@ -185,7 +216,6 @@ def graph_layout(g):
         for node in cmpnt_pos:
             pos[node] = cmpnt_pos[node] + corner
         corner += np.array([geom[0] + 1.0, 0])
-        print(geom[0])
         if corner[0] > 20.0:
             corner[0] = 0
             corner[1] += running_y
@@ -194,7 +224,7 @@ def graph_layout(g):
     # return pos
 
 
-def compute_trace(model_state, knockout_model, variables, continuous, init_state):
+def compute_trace(model_state, knockout_model, variables, continuous, init_state, check_nearby):
     """ Run the cycle finding simulation for an initial state """
     # TODO: initially copied from compute_cycles, should look for code duplication and refactoring
     #  opportunities
@@ -205,7 +235,8 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
                                               variables,
                                               continuous,
                                               model_state,
-                                              equation_system)
+                                              equation_system,
+                                              check_nearby)
 
     # can return reponses, if there is an error, return any such error response
     for edge in edge_lists:
@@ -223,6 +254,10 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
             source = to_key(edge['source'])
             if source not in labels:
                 labels[source] = count
+                count += 1
+            target = to_key(edge['target'])
+            if target not in labels:
+                labels[target] = count
                 count += 1
 
     return_states = []

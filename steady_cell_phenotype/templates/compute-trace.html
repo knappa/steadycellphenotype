@@ -19,8 +19,8 @@
       <h3>Trajectories</h3>
       {% endif %}
     </header>
+    {% for edge_list, return_state, source_labels, count in trajectories %}
     <div style="overflow-x: auto">
-      {% for edge_list, return_state, source_labels, count in trajectories %}
       <table class="w3-table-all w3-centered  w3-hoverable">
         <tr class="w3-us-blue">
           <th class="w3-us-red" style="position: absolute; width: 4em; left: 0;">State</th>
@@ -37,12 +37,12 @@
         </tr>
         {% endfor %}
       </table>
-      <footer class="w3-container w3-us-red">
+      <div class="w3-container w3-us-red">
 	<div class="w3-half w3-center">Returns to step {{ return_state }}</div>
 	<div class="w3-half w3-center">Count {{ count }}</div>
-      </footer>
+      </div>
     </div>
-      {% endfor %}
+    {% endfor %}
     <center>
       {{ trajectory_image }}
     </center>
