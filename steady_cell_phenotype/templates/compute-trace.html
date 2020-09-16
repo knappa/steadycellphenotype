@@ -36,6 +36,12 @@
           {% endfor %}
         </tr>
         {% endfor %}
+        <tr>
+          <td class="w3-us-blue" style="position: absolute; width: 4em; left: 0;">{{ return_state }}*</td>
+          {% for variable in variables %}
+          <td style="background-color:{{ {0: "#e0e0e0", 1: "#a0a0a0", 2:"#808080"}[edge_list[-1]['target'][variable]] }}">{{ edge_list[-1]['target'][variable] }}</td>
+          {% endfor %}
+        </tr>
       </table>
       <div class="w3-container w3-us-red">
 	<div class="w3-half w3-center">Returns to step {{ return_state }}</div>
