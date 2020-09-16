@@ -5,14 +5,14 @@ import tempfile
 
 import matplotlib
 import matplotlib.pyplot as plt
-
-matplotlib.use('agg')
-from flask import Markup, make_response, Response
-from equation_system import EquationSystem
 import networkx as nx
 import numpy as np
+from flask import Markup, make_response, Response
 
+from equation_system import EquationSystem
 from ._util import *
+
+matplotlib.use('agg')
 
 
 def run_model_with_init_val(init_state, knockout_model, variables, continuous, model_state, equation_system):
@@ -91,20 +91,27 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, m
     return edge_list
 
 
-def run_model_variable_init_vals(init_state, knockout_model, variables, continuous, model_state, equation_system, check_nearby):
+def run_model_variable_initial_values(init_state,
+                                      knockout_model,
+                                      variables,
+                                      continuous,
+                                      model_state,
+                                      equation_system,
+                                      check_nearby):
     """ Run the model on possibly *'ed sets of initial conditions """
 
     # deal with any *'ed variables
-    def get_states(init_state, variable_states):
-        if len(variable_states) == 0:
-            return [init_state]
+    def get_states(initial_state, remaining_variable_states):
+        if len(remaining_variable_states) == 0:
+            return [initial_state]
         else:
-            init_states = []
+            initial_states = []
             for val in range(3):
-                state = init_state.copy()
-                state[variable_states[0]] = val
-                init_states += get_states(state, variable_states[1:])
-            return init_states
+                resolved_state = initial_state.copy()
+                resolved_state[remaining_variable_states[0]] = val
+                initial_states += get_states(resolved_state, remaining_variable_states[1:])
+            return initial_states
+
     variable_states = [k for k in init_state if init_state[k] == '*']
     init_states = get_states(init_state, variable_states)
 
@@ -183,12 +190,13 @@ def connected_component_layout(g: nx.DiGraph):
                         if predecessor != succ and predecessor not in pos]
         if len(predecessors) == 0:
             return
-        delta_theta = (max_theta - min_theta) / (len(predecessors)+1)
-        for n, predecessor in enumerate(predecessors):
-            theta = min_theta + (n + 1) * delta_theta
-            pos[predecessor] = level * np.array([np.cos(theta),
-                                                 np.sin(theta)])
-            recurse_layout(predecessor, level + 1, min_theta + (n + 1.5) * delta_theta, min_theta + (n+0.5) * delta_theta)
+        delta_theta = (max_theta - min_theta) / (len(predecessors) + 1)
+        for k, predecessor in enumerate(predecessors):
+            theta_k = min_theta + (k + 1) * delta_theta
+            pos[predecessor] = level * np.array([np.cos(theta_k),
+                                                 np.sin(theta_k)])
+            recurse_layout(predecessor, level + 1, min_theta + (k + 1.5) * delta_theta,
+                           min_theta + (k + 0.5) * delta_theta)
 
     # lay out the cycle:
     if cycle_len == 1:
@@ -211,8 +219,10 @@ def connected_component_layout(g: nx.DiGraph):
 
 def graph_layout(g):
     # lay out connected components, in bounding boxes. then offset
-    components_layouts = [connected_component_layout(nx.subgraph_view(g, filter_node=lambda node: node in cpnt_verts))
-                          for cpnt_verts in nx.weakly_connected_components(g)]
+    # noinspection PyTypeChecker
+    components_layouts = [
+        connected_component_layout(nx.subgraph_view(g, filter_node=lambda vertex: vertex in component_vertices))
+        for component_vertices in nx.weakly_connected_components(g)]
     pos = dict()
     corner = np.array([0.0, 0.0])
     running_y = 0.0
@@ -235,21 +245,21 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
     #  opportunities
     equation_system = EquationSystem(model_state['model'])
 
-    edge_lists = run_model_variable_init_vals(init_state,
-                                              knockout_model,
-                                              variables,
-                                              continuous,
-                                              model_state,
-                                              equation_system,
-                                              check_nearby)
+    edge_lists = run_model_variable_initial_values(init_state,
+                                                   knockout_model,
+                                                   variables,
+                                                   continuous,
+                                                   model_state,
+                                                   equation_system,
+                                                   check_nearby)
 
-    # can return reponses, if there is an error, return any such error response
+    # can return responses, if there is an error, return any such error response
     for edge in edge_lists:
         if isinstance(edge, Response):
             return edge
 
-    def to_key(edge):
-        return frozenset(edge.items())
+    def to_key(edges):
+        return frozenset(edges.items())
 
     # give numeric labels to vertices
     labels = dict()
@@ -291,9 +301,8 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
     plt.rcParams['svg.fonttype'] = 'none'
     figheight = min(3, max(100, width / height))
     plt.figure(figsize=(4, figheight))
-    # nx.draw_kamada_kawai(g, connectionstyle='arc3,rad=0.2', with_labels=True)
-    nx.draw(g, pos=pos,
-            # connectionstyle='arc3,rad=0.2',
+    nx.draw(g,
+            pos=pos,
             with_labels=True)
     plt.title('Trajectory')
     image_filename = 'trajectory.svg'
