@@ -32,7 +32,7 @@
         <tr>
           <td class="w3-us-red" style="position: absolute; width: 4em; left: 0;">{{ source_labels[loop.index0] }}</td>
           {% for variable in variables %}
-          <td>{{ edge['source'][variable] }}</td>
+          <td style="background-color:{{ {0: "#e0e0e0", 1: "#a0a0a0", 2:"#808080"}[edge['source'][variable]] }}">{{ edge['source'][variable] }}</td>
           {% endfor %}
         </tr>
         {% endfor %}
