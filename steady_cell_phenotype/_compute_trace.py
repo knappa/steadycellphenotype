@@ -316,9 +316,9 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
     response = make_response(render_template('compute-trace.html',
                                              variables=equation_system.target_variables(),
                                              num_edge_lists=len(edge_lists),
-                                             trajectories=zip(edge_lists,
-                                                              return_states,
-                                                              source_labels,
-                                                              map(len, edge_lists)),
+                                             trajectories=list(zip(edge_lists,
+                                                                   return_states,
+                                                                   source_labels,
+                                                                   map(len, edge_lists))),
                                              trajectory_image=trajectory_image))
     return response_set_model_cookie(response, model_state)
