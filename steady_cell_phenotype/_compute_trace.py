@@ -184,10 +184,10 @@ def connected_component_layout(g: nx.DiGraph):
     pos = dict()
 
     # Note: networkx has 'node_size'==300 but it is unclear what units those are
-    def recurse_layout(succ, level, max_theta, min_theta):
+    def recurse_layout(successor, level, max_theta, min_theta):
         predecessors = [predecessor
-                        for predecessor in g.predecessors(succ)
-                        if predecessor != succ and predecessor not in pos]
+                        for predecessor in g.predecessors(successor)
+                        if predecessor != successor and predecessor not in pos]
         if len(predecessors) == 0:
             return
         delta_theta = (max_theta - min_theta) / (len(predecessors) + 1)
@@ -226,10 +226,10 @@ def graph_layout(g):
     pos = dict()
     corner = np.array([0.0, 0.0])
     running_y = 0.0
-    for cmpnt_pos, geom in components_layouts:
+    for component_pos, geom in components_layouts:
         running_y = max(running_y, geom[1])
-        for node in cmpnt_pos:
-            pos[node] = cmpnt_pos[node] + corner
+        for node in component_pos:
+            pos[node] = component_pos[node] + corner
         corner += np.array([geom[0] + 1.0, 0])
         if corner[0] > 20.0:
             corner[0] = 0
@@ -299,8 +299,8 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
 
     # draw the damned thing
     plt.rcParams['svg.fonttype'] = 'none'
-    figheight = min(3, max(100, width / height))
-    plt.figure(figsize=(4, figheight))
+    fig_height = min(3, max(100, width / height))
+    plt.figure(figsize=(4, fig_height))
     nx.draw(g,
             pos=pos,
             with_labels=True)
