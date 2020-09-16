@@ -107,7 +107,12 @@ def run_model_variable_init_vals(init_state, knockout_model, variables, continuo
             return init_states
     variable_states = [k for k in init_state if init_state[k] == '*']
     init_states = get_states(init_state, variable_states)
-    
+
+    # check to see if we will be overloaded
+    if len(variable_states) > MAX_SUPPORTED_VARIABLE_STATES:
+        return make_response(error_report(
+            f"Web platform is limited to {MAX_SUPPORTED_VARIABLE_STATES} variable states."))
+
     if check_nearby:
         nearby_states = []
         for state in init_states:

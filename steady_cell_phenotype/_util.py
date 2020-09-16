@@ -5,6 +5,7 @@ import string
 
 from flask import render_template
 
+MAX_SUPPORTED_VARIABLE_STATES = 6
 
 def html_encode(msg):
     if type(msg) is not str:
