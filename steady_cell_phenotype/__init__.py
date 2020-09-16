@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
 #
-# TODO: PROGRAM DESCRIPTION
+# A tool to analyze ternary networks
 #
 # Copyright Adam C. Knapp 2019-2020
-# License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 # Funded by American University Mellon Grant
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+# documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+# rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+# the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+# WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+# COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+# OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 import tempfile
 
@@ -178,7 +190,7 @@ def create_app(test_config=None):
             num_iterations = 0  # not going to waste any effort on garbage
 
         check_nearby = 'trace-nearby-checkbox' in request.form and request.form['trace-nearby-checkbox'] == 'Yes'
-            
+
         # decide which type of computation to run
         if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points', 'trace']:
             response = make_response(error_report(
@@ -244,8 +256,5 @@ def create_app(test_config=None):
 
     ####################################################################################################
     # startup boilerplate
-
-    # if __name__ == '__main__':
-    #    app.run()
 
     return app
