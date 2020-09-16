@@ -5,12 +5,11 @@ import tempfile
 
 import matplotlib
 import matplotlib.pyplot as plt
-
-matplotlib.use('agg')
 from flask import Markup, make_response
 
-
 from ._util import *
+
+matplotlib.use('agg')
 
 
 def compute_cycles(model_state, knockout_model, variables, continuous, num_iterations):

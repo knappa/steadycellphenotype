@@ -4,11 +4,11 @@ import subprocess
 import tempfile
 
 import matplotlib
+from flask import make_response
 
-matplotlib.use('agg')
 from ._util import *
 
-from flask import make_response
+matplotlib.use('agg')
 
 
 def compute_fixed_points(model_state, knockout_model, variables, continuous):
