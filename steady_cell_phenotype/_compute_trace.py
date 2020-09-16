@@ -282,6 +282,45 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
 
     source_labels = [[labels[to_key(edge['source'])] for edge in edge_list] for edge_list in edge_lists]
 
+    # draw a visualization of variable levels
+    variable_level_plots = []
+    for n, edge_list in enumerate(edge_lists):
+        plt.rcParams['svg.fonttype'] = 'none'
+        plt.figure(figsize=(6, 2))
+
+        # prepare to plot
+        data = np.array([
+            [edge['source'][variable] for edge in edge_list] + [edge_list[-1]['target'][variable]]
+            for variable in variables]).T
+
+        # plot
+        plt.plot(data)
+
+        # note the repeat region
+        if return_states[n] in source_labels[n]:
+            plt.axvline(source_labels[n].index(return_states[n]), color='k', linestyle='dotted')
+        plt.axvline(len(edge_list), color='k', linestyle='dotted')
+
+        # limits and ticks
+        plt.ylim([-0.25, 2.25])
+        plt.yticks([0, 1, 2])
+        plt.xlim([-0.25, len(edge_list)+0.25])
+        plt.xticks(np.arange(len(edge_list) + 1))
+        plt.gca().set_xticklabels(source_labels[n] + [return_states[n]])
+
+
+        # legend and labels
+        plt.legend(variables, bbox_to_anchor=(1.04,1), loc="center left")
+        plt.ylabel("Level")
+        plt.xlabel("State")
+        plt.tight_layout()
+        image_filename = f'levels{n}.svg'
+        with tempfile.TemporaryDirectory() as tmp_dir_name:
+            plt.savefig(tmp_dir_name + '/' + image_filename, transparent=True, pad_inches=0.0)
+            plt.close()
+            with open(tmp_dir_name + '/' + image_filename, 'r') as image:
+                variable_level_plots.append(Markup(image.read()))
+
     # trace visualization
     g = nx.DiGraph()
     for edge_list in edge_lists:
@@ -319,6 +358,7 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
                                              trajectories=list(zip(edge_lists,
                                                                    return_states,
                                                                    source_labels,
-                                                                   map(len, edge_lists))),
+                                                                   map(len, edge_lists),
+                                                                   variable_level_plots)),
                                              trajectory_image=trajectory_image))
     return response_set_model_cookie(response, model_state)
