@@ -32,14 +32,14 @@
         <tr>
           <td class="w3-us-red" style="position: absolute; width: 4em; left: 0;">{{ source_labels[loop.index0] }}</td>
           {% for variable in variables %}
-          <td style="background-color:{{ {0: "#e0e0e0", 1: "#a0a0a0", 2:"#808080"}[edge['source'][variable]] }}">{{ edge['source'][variable] }}</td>
+          <td style="background-color:{{ {0: "#e5e5e5", 1: "#adadad", 2:"#636363"}[edge['source'][variable]] }}">{{ edge['source'][variable] }}</td>
           {% endfor %}
         </tr>
         {% endfor %}
         <tr>
           <td class="w3-us-blue" style="position: absolute; width: 4em; left: 0;">{{ return_state }}*</td>
           {% for variable in variables %}
-          <td style="background-color:{{ {0: "#e0e0e0", 1: "#a0a0a0", 2:"#808080"}[edge_list[-1]['target'][variable]] }}">{{ edge_list[-1]['target'][variable] }}</td>
+          <td style="background-color:{{ {0: "#e5e5e5", 1: "#adadad", 2:"#636363"}[edge_list[-1]['target'][variable]] }}">{{ edge_list[-1]['target'][variable] }}</td>
           {% endfor %}
         </tr>
       </table>
