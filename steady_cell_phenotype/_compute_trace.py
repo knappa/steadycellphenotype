@@ -98,7 +98,23 @@ def run_model_variable_initial_values(init_state,
                                       model_state,
                                       equation_system,
                                       check_nearby):
-    """ Run the model on possibly *'ed sets of initial conditions """
+    """
+    Run the model on possibly *'ed sets of initial conditions
+
+    Parameters
+    ----------
+    init_state
+    knockout_model
+    variables
+    continuous
+    model_state
+    equation_system
+    check_nearby
+
+    Returns
+    -------
+    List
+    """
 
     # deal with any *'ed variables
     def get_states(initial_state, remaining_variable_states):
@@ -236,14 +252,13 @@ def graph_layout(g):
             corner[1] += running_y
             running_y = 0.0
     return pos
-    # return pos
 
 
 def compute_trace(model_state, knockout_model, variables, continuous, init_state, check_nearby):
     """ Run the cycle finding simulation for an initial state """
     # TODO: initially copied from compute_cycles, should look for code duplication and refactoring
     #  opportunities
-    equation_system = EquationSystem(model_state['model'])
+    equation_system = EquationSystem.from_text(model_state['model'])
 
     edge_lists = run_model_variable_initial_values(init_state,
                                                    knockout_model,
@@ -304,13 +319,12 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
         # limits and ticks
         plt.ylim([-0.25, 2.25])
         plt.yticks([0, 1, 2])
-        plt.xlim([-0.25, len(edge_list)+0.25])
+        plt.xlim([-0.25, len(edge_list) + 0.25])
         plt.xticks(np.arange(len(edge_list) + 1))
         plt.gca().set_xticklabels(source_labels[n] + [return_states[n]])
 
-
         # legend and labels
-        plt.legend(variables, bbox_to_anchor=(1.04,1), loc="center left")
+        plt.legend(variables, bbox_to_anchor=(1.04, 1), loc="center left")
         plt.ylabel("Level")
         plt.xlabel("State")
         plt.tight_layout()

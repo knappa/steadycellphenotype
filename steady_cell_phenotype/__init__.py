@@ -83,7 +83,7 @@ def create_app(test_config=None):
         try:
             tsv = request.form['model_result'].strip()
             return Response(
-                tsv,
+                tsv + '\n', # For parsing
                 mimetype="text/tab-separated-values",
                 headers={"Content-disposition": "attachment; filename=model_result.tsv"})
         except KeyError:
@@ -197,7 +197,7 @@ def create_app(test_config=None):
                 'The request was ill-formed, please go back to the main page and try again'))
             return response_set_model_cookie(response, model_state)
         elif request.form['action'] == 'cycles':
-            return compute_cycles(model_state, knockout_model, variables, continuous, num_iterations)
+            return compute_cycles(model_state, knockouts, knockout_model, variables, continuous, num_iterations)
         elif request.form['action'] == 'fixed_points':
             return compute_fixed_points(model_state, knockout_model, variables, continuous)
         elif request.form['action'] == 'trace':

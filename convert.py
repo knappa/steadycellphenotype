@@ -19,9 +19,11 @@ def main():
     parser = argparse.ArgumentParser(
         description='Converter from MAX/MIN/NOT formulae to either \n' +
                     'low-degree polynomials over F_3 or a C-language simulator')
+    # noinspection SpellCheckingInspection
     parser.add_argument('-i', '--inputfile',
                         help='input filename containing MAX/MIN/NOT formulae. required. ',
                         type=str)
+    # noinspection SpellCheckingInspection
     parser.add_argument('-o', '--outputfile',
                         help='output filename for the polynomial formulae. if not provided, stdout is used',
                         type=str)
@@ -79,9 +81,7 @@ def main():
     ################################################################################
     # parse the file into a system of equations and ensure consistency
 
-    equation_system = EquationSystem()
-    for line in in_formulae.splitlines():
-        equation_system.parse_and_add_equation(line)
+    equation_system = EquationSystem.from_text(lines=in_formulae)
 
     if not equation_system.consistent():
         print("Inconsistent system of equations!")
@@ -109,7 +109,7 @@ def main():
 
     try:
         set_variables = initial_value_list[::2]
-        initial_values = [int(val) % 3 for val in initial_value_list[1::2] ]
+        initial_values = [int(val) % 3 for val in initial_value_list[1::2]]
     except ValueError:
         print("parse error on initial values, value is not an int")
         sys.exit(-1)
@@ -231,7 +231,7 @@ int {function_name}({typed_param_list})
     variable_declaration = "\n".join(
         ["    int {name}_temp, {name};".format(name=symbol)
          for symbol, formula in equation_system])
-    
+
     # random state initializer
     variable_initialization = "\n".join(
         ["    {name} = {value} % 3;".format(name=symbol, value=int(formula))
@@ -243,19 +243,19 @@ int {function_name}({typed_param_list})
 
     # deterministic search for loops
     state_for_loops_head = " ".join(
-        [ " int {name}_init_search = {value} % 3; ".format(name=symbol, value=int(formula))
+        [" int {name}_init_search = {value} % 3; ".format(name=symbol, value=int(formula))
          if isinstance(formula, int) or formula.is_constant() else
          "  int {name}_init_search = {value} % 3;".format(name=symbol, value=initial_values[symbol])
          if symbol in initial_values else
          "for(int {name}_init_search = 0; {name}_init_search < 3; {name}_init_search++ ) {{ ".format(name=symbol)
-         for symbol, formula in equation_system ])
+         for symbol, formula in equation_system])
 
     state_for_loops_tail = " ".join(
         [" "
          if isinstance(formula, int) or formula.is_constant() or symbol in initial_values else
          "}"
-         for symbol, formula in equation_system ])
-    
+         for symbol, formula in equation_system])
+
     fixed_variable_initialization = "\n".join(
         ["    {name} = {name}_init_search;".format(name=symbol)
          for symbol, formula in equation_system])
