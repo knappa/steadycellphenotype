@@ -411,10 +411,22 @@ class EquationSystem(object):
         variables = tuple(self._equation_dict.keys())
 
         return variables, \
-               {var: self._equation_dict[var].as_sympy()
+               {var: self._equation_dict[var] if is_integer(self._equation_dict[var])
+               else self._equation_dict[var].as_sympy()
                if isinstance(self._equation_dict[var], Expression)
-               else sympy.Mod(sympy.Integer(self._equation_dict[var]), 3)
+               else sympy.Integer(self._equation_dict[var])
                 for var in self._equation_dict}
+
+    def as_numpy(self):
+        variables = tuple(self._equation_dict.keys())
+
+        functions = [self._equation_dict[var].as_numpy(variables)
+                     if isinstance(self._equation_dict[var], Expression)
+                     else np.mod(np.int(self._equation_dict[var]), 3)
+                     for var in variables]
+
+        return variables, \
+               lambda x: np.array([f(x) for f in functions])
 
     ################################################################################################
 

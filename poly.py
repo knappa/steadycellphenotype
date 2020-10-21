@@ -98,6 +98,21 @@ class Expression(object):
         """
         raise NotImplementedError("as_sympy() unimplemented in " + str(type(self)))
 
+    # def as_numpy(self, variables):
+    #     """
+    #     returns numpy-based function of variables, with order corresponding to that
+    #     given in the variables parameter
+    #
+    #     Parameters
+    #     ----------
+    #     variables
+    #
+    #     Returns
+    #     -------
+    #     lambda with len(variables) parameters
+    #     """
+    #     raise NotImplementedError("as_sympy() unimplemented in " + str(type(self)))
+
     def get_variable_set(self):
         """ returns a set containing all variable which occur in this expression """
         raise NotImplementedError("get_var_set() unimplemented in " + str(type(self)))
@@ -366,7 +381,7 @@ class Function(Expression):
                 else expr.continuous_polynomial_version(control)
 
         def not_sympy(expr):
-            return 1 - sympy.Mod(expr, 3)
+            return 1 - expr
 
         # tuples are param-count, function
         functions = {'MAX': (2, sympy.Max),
@@ -385,8 +400,46 @@ class Function(Expression):
         sympy_expressions = [sympy.Mod(expr, 3) if is_integer(expr)
                              else sympy.Mod(expr.as_sympy(), 3)
                              for expr in self._expression_list]
+        return function(*sympy_expressions)
 
-        return sympy.Mod(function(*sympy_expressions), 3)
+    # def as_numpy(self, variables):
+    #
+    #     numpy_functions = [(lambda x: np.mod(expr, 3)) if is_integer(expr)
+    #                        else (lambda x: np.mod(expr.as_numpy(variables)(x), 3))
+    #                        for expr in self._expression_list]
+    #
+    #     def cont_numpy(control, expr):
+    #         def h(x, fx):
+    #             """helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24"""
+    #             fx = fx % 3
+    #             x = x % 3
+    #             if fx > x:
+    #                 return x + 1
+    #             elif fx < x:
+    #                 return x - 1
+    #             else:
+    #                 return x
+    #
+    #         return lambda x: h(control(x), expr(x))
+    #
+    #     def not_numpy(expr):
+    #         return lambda x: 1 - np.mod(expr.as_numpy(variables)(x), 3)
+    #
+    #     # tuples are param-count, function
+    #     functions = {'MAX': (2, np.max),
+    #                  'MIN': (2, np.min),
+    #                  'CONT': (2, cont_numpy),
+    #                  'NOT': (1, not_numpy)}
+    #
+    #     if self._function_name not in functions:
+    #         raise Exception("cannot evaluate unknown function " + self._function_name + " as a numpy function")
+    #
+    #     if len(self._expression_list) != functions[self._function_name][0]:
+    #         raise Exception(f"Wrong number of arguments for {self._function_name}")
+    #
+    #     function = functions[self._function_name][1]
+    #
+    #     return lambda x: np.mod(function([f(x) for f in numpy_functions]), 3)
 
     def get_variable_set(self):
         var_set = set()
@@ -542,11 +595,11 @@ class BinaryOperation(Expression):
                 if right_exp == 0:
                     return 1
                 elif right_exp == 1:
-                    return left_exp.as_sympy()
+                    return left_exp
                 else:
-                    return left_exp.as_sympy() ** right_exp.as_sympy()
+                    return left_exp ** right_exp
             else:
-                return left_exp.as_sympy() ** right_exp.as_sympy()
+                return left_exp ** right_exp
 
         relations = {'PLUS': operator.add,
                      'MINUS': operator.sub,
@@ -556,9 +609,37 @@ class BinaryOperation(Expression):
         if self.relation_name not in relations:
             raise Exception("Unknown binary relation: " + self.relation_name)
 
-        return sympy.Mod(relations[self.relation_name](self._left_expression.as_sympy(),
-                                                       self._right_expression.as_sympy()),
-                         3)
+        lhs = self._left_expression if is_integer(self._left_expression) else self._left_expression.as_sympy()
+        rhs = self._right_expression if is_integer(self._right_expression) else self._right_expression.as_sympy()
+
+        return relations[self.relation_name](lhs, rhs)
+
+    # def as_numpy(self, variables):
+    #     """
+    #     Convert to numpy function
+    #     Parameters
+    #     ----------
+    #     variables
+    #
+    #     Returns
+    #     -------
+    #     lambda
+    #     """
+    #
+    #     relations = {'PLUS': np.add,
+    #                  'MINUS': np.subtract,
+    #                  'TIMES': np.multiply,
+    #                  'EXP': np.power}
+    #
+    #     if self.relation_name not in relations:
+    #         raise Exception("Unknown binary relation: " + self.relation_name)
+    #
+    #     lhs = (lambda x: np.int(self._left_expression)) if is_integer(self._left_expression) \
+    #         else self._left_expression.as_numpy(variables)
+    #     rhs = (lambda x: np.int(self._right_expression)) if is_integer(self._right_expression) \
+    #         else self._right_expression.as_numpy(variables)
+    #
+    #     return lambda x: np.mod(relations[self.relation_name](lhs(x), rhs(x)), 3)
 
     def get_variable_set(self):
         var_set = set()
@@ -625,6 +706,45 @@ class UnaryRelation(Expression):
             return (-1) * poly
         else:
             raise Exception("Unknown unary relation: " + self._relation_name)
+
+    def as_sympy(self):
+        """
+        Convert to sympy expression
+        Returns
+        -------
+        sympy expression
+        """
+
+        relations = {'MINUS': operator.neg}
+
+        if self._relation_name not in relations:
+            raise Exception("Unknown unary relation: " + self._relation_name)
+
+        expr = self._expr if is_integer(self._expr) else self._expr.as_sympy()
+
+        return relations[self._relation_name](expr)
+
+    # def as_numpy(self, variables):
+    #     """
+    #     Convert to numpy function
+    #     Parameters
+    #     ----------
+    #     variables
+    #
+    #     Returns
+    #     -------
+    #     lambda
+    #     """
+    #
+    #     relations = {'MINUS': np.negative}
+    #
+    #     if self._relation_name not in relations:
+    #         raise Exception("Unknown unary relation: " + self._relation_name)
+    #
+    #     expr = (lambda x: np.int(self._expr)) if is_integer(self._expr) \
+    #         else self._expr.as_numpy(variables)
+    #
+    #     return lambda x: np.mod(relations[self._relation_name](expr(x)), 3)
 
     def get_variable_set(self):
         if is_integer(self._expr):
@@ -893,11 +1013,18 @@ class Monomial(Expression):
 
     def as_sympy(self):
         # sympy empty product is 1, consistent with power_dict
-        return sympy.Mod(
-            sympy.prod([sympy.Symbol(var, integer=True) ** pow
-                        for var, pow in self._power_dict.items()]),
-            3)
+        return sympy.prod([sympy.Symbol(var, integer=True) ** pow
+                           for var, pow in self._power_dict.items()])
+
         # Fun fact: sympy doesn't recognize Symbol(var) and Symbol(var, integer=True) to be the same
+
+    # def as_numpy(self, variables):
+    #     var_index_power = tuple([(variables.index(var), self._power_dict[var]) for var in self._power_dict])
+    #
+    #     def func(x):
+    #         return np.prod([x[idx] ** power for idx, power in var_index_power])
+    #
+    #     return lambda x: np.mod(func(x), 3)
 
 
 ####################################################################################################
@@ -1106,4 +1233,12 @@ class Mod3Poly(Expression):
             return "0"
 
     def as_sympy(self):
-        return sympy.Mod(sum([coeff * expr.as_sympy() for expr, coeff in self.coeff_dict.items()]), 3)
+        return sum([coeff * expr.as_sympy() for expr, coeff in self.coeff_dict.items()])
+
+    # def as_numpy(self, variables):
+    #
+    #     numpy_coeff_func = [(coeff, expr.as_numpy(variables)) for expr, coeff in self.coeff_dict.items()]
+    #     def func(x):
+    #         return np.sum([coeff * function(x) for coeff, function in numpy_coeff_func])
+    #
+    #     return lambda x: np.mod(func(x), 3)
