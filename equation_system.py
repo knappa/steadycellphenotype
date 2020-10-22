@@ -511,7 +511,7 @@ class EquationSystem(object):
         equation_dict = deepcopy(self._equation_dict)
         for var, val in knockouts.items():
             assert var in equation_dict, "Can't knockout a variable which isn't present"
-            equation_dict[var] = val % 3
+            equation_dict[var] = int(val) % 3
 
         return EquationSystem(formula_symbol_table=self._formula_symbol_table,
                               equation_dict=equation_dict)

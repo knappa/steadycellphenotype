@@ -5,13 +5,22 @@
 {% block head %}
 {{ super() }}
 <script>
-  function toggle(source) {
-    var checkboxes = document.querySelectorAll('input[type="checkbox"]');
+  function toggle_cont(source) {
+    var checkboxes = document.getElementsByClassName("continuity");
     for (var i = 0; i < checkboxes.length; i++) {
       if (checkboxes[i] != source)
         checkboxes[i].checked = source.checked;
     }
   }
+
+  function toggle_viz(source) {
+    var checkboxes = document.getElementsByClassName("visualization");
+    for (var i = 0; i < checkboxes.length; i++) {
+      if (checkboxes[i] != source)
+        checkboxes[i].checked = source.checked;
+    }
+  }
+
 
   function uncheck(targetName) {
     var checkbox = document.querySelector('input[name="' + targetName + '-continuous"]');
@@ -52,15 +61,27 @@
                 <table id='config-table' class="w3-table-all w3-margin w3-hoverable">
                     <tr class="w3-us-blue">
                         <th>Variable</th>
-                        <th><input type="checkbox" name="all-continuous" onClick="toggle(this)"> Continuous</th>
+                        <th><input type="checkbox" name="all-continuous" onClick="toggle_viz(this)"> Visualize</th>
+                        <th><input type="checkbox" name="all-continuous" onClick="toggle_cont(this)"> Continuous</th>
                         <th>Forcing</th>
                         <th>Initial State</th>
                     </tr>
                     {% for variable in variables %}
                     <tr>
                         <td>{{ variable }}</td>
-                        <td><input type="checkbox" name="{{variable}}-continuous" value="{{variable}}"
-                                   onclick="unset('{{variable}}')"></td>
+                        <td>
+                            <input type="checkbox"
+                                   name="{{variable}}-visualized"
+                                   class="visualization"
+                                   value="{{variable}}">
+                        </td>
+                        <td>
+                            <input type="checkbox"
+                                   name="{{variable}}-continuous"
+                                   class="continuity"
+                                   value="{{variable}}"
+                                   onclick="unset('{{variable}}')">
+                        </td>
                         <td>
                             <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
                                 <option selected value="None"></option>
@@ -112,7 +133,7 @@
                           <label for="trace" >Trace state(s)</label>
 			</div>
 			<div class="w3-container w3-mobile">
-			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes" unchecked>
+			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes">
 			  <label for="trace-nearby">Include nearby states</label>
 			</div>
                     </div>

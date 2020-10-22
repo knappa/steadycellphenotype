@@ -17,17 +17,11 @@ import numpy as np
 matplotlib.use('agg')
 
 
-def compute_cycles(model_state, knockouts, knockout_model, variables, continuous, num_iterations):
+def compute_cycles(model_state, knockouts, variables, continuous, num_iterations):
     equation_system = EquationSystem.from_text(model_state['model'])
-    # TODO: knockouts, continuity
-
-    # TODO: reimplement complete search
-    # # randomized search is kind of silly if you ask for more iterations than there are actual states
-    # # so go to the complete search mode in this case.
-    # if 3 ** len(variables) <= num_iterations:
-    #     complete_search_params = ['-complete_search']
-    # else:
-    #     complete_search_params = []
+    equation_system = equation_system.continuous_system(
+        continuous_vars=tuple([var for var in continuous if continuous[var]]))
+    equation_system = equation_system.knockout_system(knockouts)
 
     variables, eqns_dict = equation_system.as_sympy()
     variable_idx = dict(zip(variables, range(len(variables))))
@@ -50,12 +44,40 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
     phased_trajectories = defaultdict(lambda: [])
     phased_trajectory_lengths = defaultdict(lambda: [])  # key: limit sets
 
-    for iteration in range(num_iterations):
-        # making the choice to start constant variables at their constant values
-        init_state_dict = {var: np.random.randint(3) if var not in constants else constants_dict[var]
-                           for var in variables}
-        state = tuple(init_state_dict[var] for var in variables)
+    # TODO: reimplement complete search
+    state_space_size = 3 ** (len(variables) - len(constants))
+    perform_complete_search = state_space_size <= num_iterations  # TODO: redo, maybe not here
 
+    def complete_search_generator():
+        num_non_constant_vars = len(variables) - len(constants)
+        non_constant_vars = list(set(variables) - set(constants))
+        for var_dict in map(lambda tup: dict(zip(tup[0], tup[1])),
+                            zip(itertools.repeat(non_constant_vars),
+                                itertools.product(range(3), repeat=num_non_constant_vars))):
+            state = tuple(var_dict[var] if var in var_dict else constants_dict[var] for var in variables)
+            yield state
+
+    def random_search_generator(num_iterations):
+        for _ in range(num_iterations):
+            # making the choice to start constant variables at their constant values
+            init_state_dict = {var: np.random.randint(3) if var not in constants else constants_dict[var]
+                               for var in variables}
+            state = tuple(init_state_dict[var] for var in variables)
+            yield state
+
+    if perform_complete_search:
+        state_generator = complete_search_generator()
+    else:
+        state_generator = random_search_generator(num_iterations)
+    # # randomized search is kind of silly if you ask for more iterations than there are actual states
+    # # so go to the complete search mode in this case.
+    # if 3 ** len(variables) <= num_iterations:
+    #     complete_search_params = ['-complete_search']
+    # else:
+    #     complete_search_params = []
+
+    for init_state in state_generator:
+        state = init_state
         trajectory = list()
         trajectory_set = set()  # set lookup should be faster
         while state not in trajectory_set:
@@ -81,8 +103,7 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
 
         counts[limit_set] += 1
         trajectory_lengths[limit_set].append(len(trajectory_to_limit_cycle))
-        if len(trajectory_to_limit_cycle) > 0:
-            trajectories[limit_set].append(trajectory_to_limit_cycle)
+        trajectories[limit_set].append(trajectory_to_limit_cycle)
 
     # give it a name
     limit_sets = trajectories.keys()
@@ -152,18 +173,19 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
             plt.axvline(x=len(means) - 1, color='grey', linestyle='dotted')
             plt.axvline(x=len(means), color='grey', linestyle='dotted')
 
-            mean_interp = np.array([means[-1], cycle_mean, cycle_mean])
-            stdev_interp = np.array([stdevs[-1], cycle_stdev, cycle_stdev])
-            xvals = np.array([len(means) - 1, len(means), len(means) + len(cycle)])
-            plt.plot(xvals,
-                     mean_interp,
-                     color='grey',
-                     linestyle='dashed')
-            plt.fill_between(xvals,
-                             mean_interp - stdev_interp,
-                             mean_interp + stdev_interp,
-                             color='grey',
-                             alpha=0.25)
+            if len(means) > 0:
+                mean_interp = np.array([means[-1], cycle_mean, cycle_mean])
+                stdev_interp = np.array([stdevs[-1], cycle_stdev, cycle_stdev])
+                xvals = np.array([len(means) - 1, len(means), len(means) + len(cycle)])
+                plt.plot(xvals,
+                         mean_interp,
+                         color='grey',
+                         linestyle='dashed')
+                plt.fill_between(xvals,
+                                 mean_interp - stdev_interp,
+                                 mean_interp + stdev_interp,
+                                 color='grey',
+                                 alpha=0.25)
 
             plt.plot(range(len(means), len(means) + len(cycle)),
                      [cycle[idx][var_idx] for idx in range(len(cycle))],
@@ -199,8 +221,8 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
                      [cycle[idx][var_idx] for idx in range(len(cycle))] + [cycle[0][var_idx]],
                      color='orange', linestyle='dashed')
             # solid cycle in `converged` region
-            plt.plot(range(len(phased_means), len(phased_means) + len(cycle)),
-                     [cycle[idx][var_idx] for idx in range(len(cycle))],
+            plt.plot(range(len(phased_means), len(phased_means) + len(cycle) + 1),
+                     [cycle[idx][var_idx] for idx in range(len(cycle))] + [cycle[0][var_idx]],
                      color='orange')
 
             plt.title(f'Phased Envelope of trajectories for {var}')
@@ -257,8 +279,6 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 length_distribution_images[limit_set] = Markup(image.read())
 
-    performed_complete_search = False  # TODO: redo, maybe not here
-
     cycles = [{'states': cycle,
                'len': len(cycle),
                'count': counts[frozenset(cycle)],
@@ -273,7 +293,7 @@ def compute_cycles(model_state, knockouts, knockout_model, variables, continuous
                                              cycles=cycles,
                                              variables=variables,
                                              cycle_len_counts=cycle_len_counts,
-                                             complete_results=performed_complete_search))
+                                             complete_results=perform_complete_search))
     return response_set_model_cookie(response, model_state)
 
 # def compute_cycles(model_state, knockouts, knockout_model, variables, continuous, num_iterations):
