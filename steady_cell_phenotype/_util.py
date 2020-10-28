@@ -1,11 +1,15 @@
 import datetime
 import html
+import itertools
 import json
 import string
-
+from typing import Dict, List
+import numpy as np
+from attr import attrs, attrib
 from flask import render_template
 
 MAX_SUPPORTED_VARIABLE_STATES = 6
+
 
 def html_encode(msg):
     if type(msg) is not str:
@@ -67,3 +71,93 @@ def decode_int(coded_value, num_variables):
         coded_value = (coded_value - next_value) // 3
     exploded_values.reverse()
     return exploded_values
+
+
+@attrs
+class StreamingStats(object):
+    mean: float = attrib(init=False, default=float('nan'))
+    scaled_var: float = attrib(init=False, default=float('nan'))
+    var: float = attrib(init=False, default=float('nan'))
+    count: int = attrib(init=False, default=0)
+
+    def add(self, datum: float):
+        self.count += 1
+        if self.count == 1:
+            self.mean = datum
+            self.scaled_var = 0
+            self.var = 0
+        else:
+            old_mean = self.mean
+            self.mean += (datum - old_mean) / self.count
+            self.scaled_var += (datum - old_mean) * (datum - self.mean)
+
+        if self.count > 1:
+            self.var = self.scaled_var / (self.count - 1)
+        else:
+            self.var = 0.0
+
+
+@attrs
+class BinCounter(object):
+    bins: np.ndarray = attrib(init=False, default=np.zeros(10, dtype=np.int))
+    max: int = attrib(init=False, default=-1)
+
+    def add(self, datum: int):
+        if datum >= len(self.bins):
+            old_bins = self.bins
+            self.bins = np.zeros(int(1.5 * datum), dtype=np.int)
+            self.bins[:len(old_bins)] = old_bins
+        self.bins[datum] += 1
+        self.max = max(self.max, datum)
+
+    def trimmed_bins(self):
+        return np.trim_zeros(filt=self.bins, trim='b')
+
+
+@attrs(hash=True, cache_hash=True)
+class HashableNdArray(object):
+    array: np.ndarray = attrib()
+
+    def __getitem__(self, item):
+        return self.array[item]
+
+def complete_search_generator(variables: List[str], constants_vals: Dict[str, int]):
+    """
+    Generator which yields all possible states, with constant variables fixed
+
+    Returns
+    -------
+    Generator[Tuple]
+    """
+    constants = tuple(constants_vals.keys())
+    num_non_constant_vars = len(variables) - len(constants)
+    non_constant_vars = list(set(variables) - set(constants))
+    for var_dict in map(lambda tup: dict(zip(tup[0], tup[1])),
+                        zip(itertools.repeat(non_constant_vars),
+                            itertools.product(range(3), repeat=num_non_constant_vars))):
+        state = tuple(var_dict[var] if var in var_dict else constants_vals[var] for var in variables)
+        yield state
+
+
+def random_search_generator(num_iterations, variables: List[str], constants_vals: Dict[str, int]):
+    """
+    Generates `num_iterations` random states, with constant variables fixed.
+
+    Parameters
+    ----------
+    num_iterations
+    variables
+    constants_vals
+
+    Returns
+    -------
+    Generator[Tuple]
+    """
+    constants = tuple(constants_vals.keys())
+    for _ in range(num_iterations):
+        # making the choice to start constant variables at their constant values
+        init_state_dict = {var: np.random.randint(3) if var not in constants else constants_vals[var]
+                           for var in variables}
+        state = tuple(init_state_dict[var] for var in variables)
+        yield state
+

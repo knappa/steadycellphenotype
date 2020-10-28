@@ -43,8 +43,8 @@
                 </tr>
                 {% for state in cycle['states'] %}
                 <tr>
-                    {% for key in state %}
-                    <td>{{ state[key] }}</td>
+                    {% for value in state %}
+                    <td>{{ value }}</td>
                     {% endfor %}
                 </tr>
                 {% endfor %}
@@ -57,9 +57,11 @@
         <center>
             {{ cycle['len-dist-image'] }}
         </center>
+        <center>
         {% for key in cycle['limit-set-stats-images'] %}
         {{ cycle['limit-set-stats-images'][key] }}
         {% endfor %}
+        </center>
     </div>
     {% endfor %}
 

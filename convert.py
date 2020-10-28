@@ -129,7 +129,7 @@ def main():
             continuous_variables = [var for var in all_variables if var not in args.continuous_omit]
         else:
             continuous_variables = all_variables
-        equation_system = equation_system.continuous_system(continuous_vars=continuous_variables)
+        equation_system = equation_system.continuous_polynomial_system(continuous_vars=continuous_variables)
 
     if args.sim or args.graph or args.complete_search:
         #################################################################

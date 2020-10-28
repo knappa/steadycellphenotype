@@ -1,216 +1,142 @@
-import itertools
-import os
-import shutil
-import subprocess
 import tempfile
+import time
 from collections import defaultdict
+from typing import Tuple, Callable
 
 import matplotlib
 import matplotlib.pyplot as plt
-import sympy
+import numba
 from flask import Markup, make_response
 
 from equation_system import EquationSystem
 from ._util import *
-import numpy as np
 
 matplotlib.use('agg')
 
 
-def compute_cycles(model_state, knockouts, variables, continuous, num_iterations):
+def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize_variables: Dict[str, bool]):
     equation_system = EquationSystem.from_text(model_state['model'])
-    equation_system = equation_system.continuous_system(
+    equation_system = equation_system.continuous_functional_system(
         continuous_vars=tuple([var for var in continuous if continuous[var]]))
     equation_system = equation_system.knockout_system(knockouts)
 
-    variables, eqns_dict = equation_system.as_sympy()
-    variable_idx = dict(zip(variables, range(len(variables))))
+    visualized_variables: Tuple[str] = tuple(var for var in visualize_variables if visualize_variables[var])
 
     # create an update function
-    variables_sympy = tuple(sympy.Symbol(var, integer=True) for var in variables)
-    update_fn = sympy.lambdify(variables_sympy, tuple(eqns_dict[var] % 3 for var in variables), modules=['numpy'])
+    variables: List[str]
+    update_fn: Callable
+    variables, update_fn = equation_system.as_numpy()
+    update_fn = numba.jit(update_fn)
 
-    constants = equation_system.constant_variables()
-    constants_dict = {const: int(equation_system[const]) for const in constants}
+    # associate variable names with their index in vectors
+    variable_idx: Dict[str, int] = dict(zip(variables, range(len(variables))))
 
-    # keys are limit cycles, values are trajectories into them
-    trajectories = defaultdict(lambda: [])  # key: limit sets
-    trajectory_lengths = defaultdict(lambda: [])  # key: limit sets
-    counts = defaultdict(lambda: 0)
-    limit_cycles = dict()  # record limit sets with their ordering. i.e. as cycles
+    constants: List[str] = equation_system.constant_variables()
+    constants_vals: Dict[str, int] = {const: int(equation_system[const]) for const in constants}
+
+    # frozenset keys are limit sets
+    limit_cycles: Dict[frozenset, List] = dict()  # record limit sets with their ordering. i.e. as cycles
 
     # phased trajectories include a portion of the limit cycle, up to a fixed element
     # the fixed element is defined to be the first element of the cycle in `limit_cycles`
-    phased_trajectories = defaultdict(lambda: [])
-    phased_trajectory_lengths = defaultdict(lambda: [])  # key: limit sets
+    phased_trajectory_lengths: Dict[frozenset, BinCounter] = \
+        defaultdict(lambda: BinCounter())  # key: limit sets
+    phased_limit_set_stats: Dict[Tuple[frozenset, str, int], StreamingStats] = \
+        defaultdict(lambda: StreamingStats())
 
-    # TODO: reimplement complete search
+    # decide if we will perform a complete state space search or not
     state_space_size = 3 ** (len(variables) - len(constants))
-    perform_complete_search = state_space_size <= num_iterations  # TODO: redo, maybe not here
-
-    def complete_search_generator():
-        num_non_constant_vars = len(variables) - len(constants)
-        non_constant_vars = list(set(variables) - set(constants))
-        for var_dict in map(lambda tup: dict(zip(tup[0], tup[1])),
-                            zip(itertools.repeat(non_constant_vars),
-                                itertools.product(range(3), repeat=num_non_constant_vars))):
-            state = tuple(var_dict[var] if var in var_dict else constants_dict[var] for var in variables)
-            yield state
-
-    def random_search_generator(num_iterations):
-        for _ in range(num_iterations):
-            # making the choice to start constant variables at their constant values
-            init_state_dict = {var: np.random.randint(3) if var not in constants else constants_dict[var]
-                               for var in variables}
-            state = tuple(init_state_dict[var] for var in variables)
-            yield state
+    perform_complete_search = state_space_size <= num_iterations
 
     if perform_complete_search:
-        state_generator = complete_search_generator()
+        state_generator = complete_search_generator(variables=variables,
+                                                    constants_vals=constants_vals)
     else:
-        state_generator = random_search_generator(num_iterations)
-    # # randomized search is kind of silly if you ask for more iterations than there are actual states
-    # # so go to the complete search mode in this case.
-    # if 3 ** len(variables) <= num_iterations:
-    #     complete_search_params = ['-complete_search']
-    # else:
-    #     complete_search_params = []
+        state_generator = random_search_generator(num_iterations=num_iterations,
+                                                  variables=variables,
+                                                  constants_vals=constants_vals)
+    print("simulation begins")
 
     for init_state in state_generator:
         state = init_state
         trajectory = list()
         trajectory_set = set()  # set lookup should be faster
-        while state not in trajectory_set:
-            trajectory.append(state)
-            trajectory_set.add(state)
-            state = update_fn(*state)
+
+        sim_start = time.time()
+        t_state = HashableNdArray(state)  # apparently, conversion from ndarray to tuple is _slow_
+        while t_state not in trajectory_set:
+            trajectory.append(t_state)
+            trajectory_set.add(t_state)
+            state = update_fn(state)
+            t_state = tuple(state)
+
+        sim_end = time.time()
 
         # separate trajectory into in-bound and limit-cycle parts
-        repeated_state = state
+        repeated_state = tuple(state)
         repeated_state_index = trajectory.index(repeated_state)
-        trajectory_to_limit_cycle = trajectory[:repeated_state_index]
         limit_cycle = trajectory[repeated_state_index:]
         limit_set = frozenset(limit_cycle)
 
         if limit_set not in limit_cycles:
             limit_cycles[limit_set] = limit_cycle  # record ordering
 
-        # record trajectory with phase
-        phase_idx = trajectory.index(limit_cycles[limit_set][0])
+        # get trajectory with phase
+        phase_idx: int = trajectory.index(limit_cycles[limit_set][0])
         phased_trajectory = trajectory[:phase_idx]
-        phased_trajectories[limit_set].append(phased_trajectory)
-        phased_trajectory_lengths[limit_set].append(len(phased_trajectory))
 
-        counts[limit_set] += 1
-        trajectory_lengths[limit_set].append(len(trajectory_to_limit_cycle))
-        trajectories[limit_set].append(trajectory_to_limit_cycle)
+        process_1_end = time.time()
+
+        # LOCK
+        # record stats
+        phased_trajectory_lengths[limit_set].add(len(phased_trajectory))
+        for idx, var in itertools.product(range(len(phased_trajectory)), visualized_variables):
+            phased_limit_set_stats[(limit_set,
+                                    var,
+                                    len(phased_trajectory) - 1 - idx)] \
+                .add(phased_trajectory[idx][variable_idx[var]])
+        # UNLOCK
+
+        record_1_end = time.time()
+        print("*" * max(0, int(-np.log(sim_end - sim_start))), '\t',
+              "*" * max(0, int(-np.log(process_1_end - sim_end))), '\t',
+              "*" * max(0, int(-np.log(record_1_end - process_1_end))))
 
     # give it a name
-    limit_sets = trajectories.keys()
+    limit_sets = limit_cycles.keys()
 
-    # collect stats
-    limit_set_stats = dict()
-    for limit_set in limit_sets:
-        length_dist = np.bincount(trajectory_lengths[limit_set])  # TODO: should length_dist be phased?
-        max_len = len(length_dist) - 1
+    # summary stat
+    counts = {limit_set: np.sum(bin_counts.bins) for limit_set, bin_counts in phased_trajectory_lengths.items()}
 
-        # indices: variable name, then max_len - distance to limit set
-        state_dataset_by_var = {var: [[] for _ in range(max_len)] for var in variables}
-        for trajectory in trajectories[limit_set]:
-            for var, idx in itertools.product(variables, range(len(trajectory))):
-                state_dataset_by_var[var][-1 - idx].append(trajectory[-1 - idx][variable_idx[var]])
+    # turn off defaults, from defaultdict
+    phased_limit_set_stats = dict(phased_limit_set_stats)
 
-        limit_set_stats[limit_set] = {var: [[] for _ in range(max_len)] for var in variables}
-        for var, idx in itertools.product(variables, range(max_len)):
-            data = state_dataset_by_var[var][idx]
-            limit_set_stats[limit_set][var][idx] = {'mean': np.mean(data),
-                                                    'stdev': np.std(data)}
-    # collect phased stats
-    phased_limit_set_stats = dict()
-    for limit_set in limit_sets:
-        phased_length_dist = np.bincount(phased_trajectory_lengths[limit_set])
-        phased_max_len = len(phased_length_dist) - 1
-
-        # indices: variable name, then max_len - distance to limit set
-        phased_state_dataset_by_var = {var: [[] for _ in range(phased_max_len)] for var in variables}
-        for trajectory in phased_trajectories[limit_set]:
-            for var, idx in itertools.product(variables, range(len(trajectory))):
-                phased_state_dataset_by_var[var][-1 - idx].append(trajectory[-1 - idx][variable_idx[var]])
-
-        phased_limit_set_stats[limit_set] = {var: [[] for _ in range(phased_max_len)] for var in variables}
-        for var, idx in itertools.product(variables, range(phased_max_len)):
-            data = phased_state_dataset_by_var[var][idx]
-            phased_limit_set_stats[limit_set][var][idx] = {'mean': np.mean(data),
-                                                           'stdev': np.std(data)}
+    print('simulation complete')
 
     # create images for each variable
     limit_set_stats_images = {limit_set: dict() for limit_set in limit_sets}
     with tempfile.TemporaryDirectory() as tmp_dir_name:
         plt.rcParams['svg.fonttype'] = 'none'
-        for limit_set, var in itertools.product(limit_sets, variables):
-            stats = limit_set_stats[limit_set]
-            phased_stats = phased_limit_set_stats[limit_set]
+        for limit_set, var in itertools.product(limit_sets, visualized_variables):
+            print(limit_set, var)
 
             cycle = limit_cycles[limit_set]
             var_idx = variable_idx[var]
 
-            cycle_mean = np.mean([state[var_idx] for state in cycle])
-            cycle_stdev = np.std([state[var_idx] for state in cycle])
+            phased_means = np.array(
+                [phased_limit_set_stats[(limit_set, var, idx)].mean
+                 for idx in range(phased_trajectory_lengths[limit_set].max)])
+            phased_means = np.flip(phased_means)
 
-            means = np.array([stats[var][idx]['mean'] for idx in range(len(stats[var]))])
-            stdevs = np.array([stats[var][idx]['stdev'] for idx in range(len(stats[var]))])
+            phased_stdevs = np.array(
+                [np.sqrt(phased_limit_set_stats[(limit_set, var, idx)].var)
+                 for idx in range(phased_trajectory_lengths[limit_set].max)])
+            phased_stdevs = np.flip(phased_stdevs)
 
-            phased_means = np.array([phased_stats[var][idx]['mean'] for idx in range(len(phased_stats[var]))])
-            phased_stdevs = np.array([phased_stats[var][idx]['stdev'] for idx in range(len(phased_stats[var]))])
+            plt.figure(figsize=(6, 4))
 
-            plt.figure(figsize=(6, 6))
-
-            ###############################################################################
-            plt.subplot(2, 1, 1)
-            plt.plot(means)
-            plt.fill_between(range(len(means)), means - stdevs, means + stdevs, color='grey', alpha=0.25)
-
-            plt.axvline(x=len(means) - 1, color='grey', linestyle='dotted')
-            plt.axvline(x=len(means), color='grey', linestyle='dotted')
-
-            if len(means) > 0:
-                mean_interp = np.array([means[-1], cycle_mean, cycle_mean])
-                stdev_interp = np.array([stdevs[-1], cycle_stdev, cycle_stdev])
-                xvals = np.array([len(means) - 1, len(means), len(means) + len(cycle)])
-                plt.plot(xvals,
-                         mean_interp,
-                         color='grey',
-                         linestyle='dashed')
-                plt.fill_between(xvals,
-                                 mean_interp - stdev_interp,
-                                 mean_interp + stdev_interp,
-                                 color='grey',
-                                 alpha=0.25)
-
-            plt.plot(range(len(means), len(means) + len(cycle)),
-                     [cycle[idx][var_idx] for idx in range(len(cycle))],
-                     color='orange')
-            plt.plot([len(means) + len(cycle) - 1, len(means) + len(cycle)], [cycle[-1][var_idx], cycle[0][var_idx]],
-                     color='orange', linestyle='dotted')
-
-            plt.title(f'Envelope of trajectories for {var}')
-
-            plt.xlabel('Distance to limit cycle')
-            plt.xticks(range(len(means) + len(cycle) + 1),
-                       list(range(len(means), 0, -1)) + ([0] * (1 + len(cycle))),
-                       rotation=45)
-            plt.xlim([0, len(means) + len(cycle)])
-
-            plt.ylabel('State')
-            plt.yticks([0, 1, 2])
-            for y_val in range(3):
-                plt.axhline(y=y_val, linestyle='dotted', color='grey', alpha=0.5)
-            plt.ylim([0 - 0.1, 2 + 0.1])
-
-            ###############################################################################
-            plt.subplot(2, 1, 2)
             # means, since phased will fix on single value at end
-            plt.plot(list(phased_means) + [cycle[0][var_idx]], color='C0')
+            plt.plot(list(phased_means) + [cycle[0][var_idx]], color='#1f3d87')
             plt.fill_between(range(len(phased_means) + 1),
                              list(phased_means - phased_stdevs) + [cycle[0][var_idx]],
                              list(phased_means + phased_stdevs) + [cycle[0][var_idx]],
@@ -219,18 +145,18 @@ def compute_cycles(model_state, knockouts, variables, continuous, num_iterations
             # dashed cycle in `converging` region
             plt.plot(range(len(phased_means) - len(cycle), len(phased_means) + 1),
                      [cycle[idx][var_idx] for idx in range(len(cycle))] + [cycle[0][var_idx]],
-                     color='orange', linestyle='dashed')
+                     color='#F24F00', linestyle='dashed')
             # solid cycle in `converged` region
             plt.plot(range(len(phased_means), len(phased_means) + len(cycle) + 1),
                      [cycle[idx][var_idx] for idx in range(len(cycle))] + [cycle[0][var_idx]],
-                     color='orange')
+                     color='#F24F00')
 
             plt.title(f'Phased Envelope of trajectories for {var}')
 
             plt.xlabel('Distance to phase-fixing point on limit cycle')
             plt.xticks(range(len(phased_means) + len(cycle) + 1),
                        list(range(len(phased_means), -1 - len(cycle), -1)),
-                       rotation=45)
+                       rotation=90)
             plt.xlim([0, len(phased_means) + len(cycle)])
             plt.axvline(len(phased_means), linestyle='dotted', color='grey')
             plt.axvline(len(phased_means) - len(cycle), linestyle='dotted', color='grey')
@@ -249,6 +175,8 @@ def compute_cycles(model_state, knockouts, variables, continuous, num_iterations
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 limit_set_stats_images[limit_set][var] = Markup(image.read())
 
+    print('var images complete')
+
     # cycle list sorted by frequency
     cycle_list = list(limit_cycles.values())
     cycle_list.sort(key=lambda cycle: counts[frozenset(cycle)], reverse=True)
@@ -264,7 +192,7 @@ def compute_cycles(model_state, knockouts, variables, continuous, num_iterations
         # create length distribution plots
         plt.rcParams['svg.fonttype'] = 'none'
         for limit_set in limit_sets:
-            length_dist = np.bincount(trajectory_lengths[limit_set])
+            length_dist = phased_trajectory_lengths[limit_set].trimmed_bins()
             plt.figure(figsize=(4, 3))
             plt.bar(x=range(len(length_dist)),
                     height=length_dist,
@@ -278,15 +206,15 @@ def compute_cycles(model_state, knockouts, variables, continuous, num_iterations
             plt.close()
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 length_distribution_images[limit_set] = Markup(image.read())
-
+    print(cycle_list)
     cycles = [{'states': cycle,
                'len': len(cycle),
                'count': counts[frozenset(cycle)],
                'percent': 100 * counts[frozenset(cycle)] / num_iterations,
-               'len-dist-image': length_distribution_images[frozenset(cycle)] if frozenset(
-                   cycle) in length_distribution_images else "",
-               'limit-set-stats-images': limit_set_stats_images[frozenset(cycle)] if frozenset(
-                   cycle) in limit_set_stats_images else dict(), }
+               'len-dist-image': length_distribution_images[frozenset(cycle)]
+               if frozenset(cycle) in length_distribution_images else "",
+               'limit-set-stats-images': limit_set_stats_images[frozenset(cycle)]
+               if frozenset(cycle) in limit_set_stats_images else dict(), }
               for cycle in cycle_list]
     # respond with the results-of-computation page
     response = make_response(render_template('compute-cycles.html',

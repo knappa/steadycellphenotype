@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 from copy import deepcopy
-from typing import Tuple, Sequence, List
+from typing import Tuple, Sequence, List, Callable
 
 import sympy
 from attr import attrs, attrib
@@ -372,24 +372,24 @@ class EquationSystem(object):
     def formula_symbol_table(self):
         return deepcopy(self._formula_symbol_table)
 
-    def target_variables(self):
+    def target_variables(self) -> Tuple[str]:
         return tuple(self._equation_dict.keys())
 
-    def variables_that_vary(self):
+    def variables_that_vary(self) -> List[str]:
         return [
             var
             for var, eqn in self._equation_dict.items()
             if type(eqn) != int and not eqn.is_constant()
         ]
 
-    def constant_variables(self):
+    def constant_variables(self) -> List[str]:
         return [
             var
             for var, eqn in self._equation_dict.items()
             if type(eqn) == int or eqn.is_constant()
         ]
 
-    def consistent(self):
+    def consistent(self) -> bool:
         """
         Check if this makes sense as an update function. The set of formula symbols must be contained in the set
         of target variables
@@ -417,16 +417,23 @@ class EquationSystem(object):
                else sympy.Integer(self._equation_dict[var])
                 for var in self._equation_dict}
 
-    def as_numpy(self):
+    def as_numpy(self) -> Tuple[Tuple[str], Callable]:
         variables = tuple(self._equation_dict.keys())
 
-        functions = [self._equation_dict[var].as_numpy(variables)
+        functions = [self._equation_dict[var].as_numpy_str(variables)
                      if isinstance(self._equation_dict[var], Expression)
-                     else np.mod(np.int(self._equation_dict[var]), 3)
+                     else str(np.mod(np.int(self._equation_dict[var]), 3))
                      for var in variables]
 
-        return variables, \
-               lambda x: np.array([f(x) for f in functions])
+        function_str = "".join(["update_function = lambda state: np.array([",
+                                ','.join(['np.mod(' + function + ', 3)' for function in functions]),
+                                '])'])
+        print(function_str)
+        # See https://docs.python.org/3/library/functions.html#exec
+        locals_dict = dict()
+        exec(function_str, globals(), locals_dict)  # now there is a 'update_function' defined
+        update_function = locals_dict['update_function']
+        return variables, update_function
 
     ################################################################################################
 
@@ -435,15 +442,17 @@ class EquationSystem(object):
 
     ################################################################################################
 
-    def continuous_system(
-            self, continuous_vars: Sequence[str] = None
-    ) -> EquationSystem:
+    def continuous_polynomial_system(self, continuous_vars: Sequence[str] = None) -> EquationSystem:
         """
         Get continuous version of system
 
-        :param continuous_vars: sequence of variable names. if not specified, all are made continuous
-        except when listed in non_continuous_vars
-        :return: EquationSystem
+        Parameters
+        ----------
+        continuous_vars sequence of variable names. if not specified, all are made continuous
+
+        Returns
+        -------
+        EquationSystem
         """
         if continuous_vars is None:
             continuous_vars = list(self._equation_dict.keys())
@@ -470,6 +479,33 @@ class EquationSystem(object):
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
         )
+
+    ################################################################################################
+
+    def continuous_functional_system(self, continuous_vars: Sequence[str] = None) -> EquationSystem:
+        """
+        Get continuous version of system
+
+        Parameters
+        ----------
+        continuous_vars sequence of variable names. if not specified, all are made continuous
+
+        Returns
+        -------
+        EquationSystem
+        """
+        if continuous_vars is None:
+            continuous_vars = set(self._equation_dict.keys())
+
+        continuous_vars = set(continuous_vars)
+
+        continuous_equations = {
+            var: Function('CONT', [Monomial.as_var(var), expr]) if var in continuous_vars else expr
+            for var, expr in self._equation_dict.items()
+        }
+
+        return EquationSystem(formula_symbol_table=self._formula_symbol_table,
+                              equation_dict=continuous_equations)
 
     ################################################################################################
 
