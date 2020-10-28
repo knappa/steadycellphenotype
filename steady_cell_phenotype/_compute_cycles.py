@@ -55,22 +55,21 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
         state_generator = random_search_generator(num_iterations=num_iterations,
                                                   variables=variables,
                                                   constants_vals=constants_vals)
-    print("simulation begins")
 
     for init_state in state_generator:
         state = init_state
         trajectory = list()
         trajectory_set = set()  # set lookup should be faster
 
-        sim_start = time.time()
+        # sim_start = time.time()
         t_state = HashableNdArray(state)  # apparently, conversion from ndarray to tuple is _slow_
         while t_state not in trajectory_set:
             trajectory.append(t_state)
             trajectory_set.add(t_state)
             state = update_fn(state)
-            t_state = tuple(state)
+            t_state = HashableNdArray(state)
 
-        sim_end = time.time()
+        # sim_end = time.time()
 
         # separate trajectory into in-bound and limit-cycle parts
         repeated_state = tuple(state)
@@ -85,9 +84,8 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
         phase_idx: int = trajectory.index(limit_cycles[limit_set][0])
         phased_trajectory = trajectory[:phase_idx]
 
-        process_1_end = time.time()
+        # process_1_end = time.time()
 
-        # LOCK
         # record stats
         phased_trajectory_lengths[limit_set].add(len(phased_trajectory))
         for idx, var in itertools.product(range(len(phased_trajectory)), visualized_variables):
@@ -95,12 +93,11 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
                                     var,
                                     len(phased_trajectory) - 1 - idx)] \
                 .add(phased_trajectory[idx][variable_idx[var]])
-        # UNLOCK
 
-        record_1_end = time.time()
-        print("*" * max(0, int(-np.log(sim_end - sim_start))), '\t',
-              "*" * max(0, int(-np.log(process_1_end - sim_end))), '\t',
-              "*" * max(0, int(-np.log(record_1_end - process_1_end))))
+        # record_1_end = time.time()
+        # print("*" * max(0, int(-np.log(sim_end - sim_start))), '\t',
+        #       "*" * max(0, int(-np.log(process_1_end - sim_end))), '\t',
+        #       "*" * max(0, int(-np.log(record_1_end - process_1_end))))
 
     # give it a name
     limit_sets = limit_cycles.keys()
