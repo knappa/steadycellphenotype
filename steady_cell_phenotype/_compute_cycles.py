@@ -72,7 +72,7 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
         # sim_end = time.time()
 
         # separate trajectory into in-bound and limit-cycle parts
-        repeated_state = tuple(state)
+        repeated_state = HashableNdArray(state)
         repeated_state_index = trajectory.index(repeated_state)
         limit_cycle = trajectory[repeated_state_index:]
         limit_set = frozenset(limit_cycle)
@@ -108,14 +108,14 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
     # turn off defaults, from defaultdict
     phased_limit_set_stats = dict(phased_limit_set_stats)
 
-    print('simulation complete')
+    # print('simulation complete')
 
     # create images for each variable
     limit_set_stats_images = {limit_set: dict() for limit_set in limit_sets}
     with tempfile.TemporaryDirectory() as tmp_dir_name:
         plt.rcParams['svg.fonttype'] = 'none'
         for limit_set, var in itertools.product(limit_sets, visualized_variables):
-            print(limit_set, var)
+            # print(limit_set, var)
 
             cycle = limit_cycles[limit_set]
             var_idx = variable_idx[var]
@@ -172,7 +172,7 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 limit_set_stats_images[limit_set][var] = Markup(image.read())
 
-    print('var images complete')
+    # print('var images complete')
 
     # cycle list sorted by frequency
     cycle_list = list(limit_cycles.values())
@@ -203,7 +203,8 @@ def compute_cycles(model_state, knockouts, continuous, num_iterations, visualize
             plt.close()
             with open(tmp_dir_name + '/' + image_filename, 'r') as image:
                 length_distribution_images[limit_set] = Markup(image.read())
-    print(cycle_list)
+
+    # print(cycle_list)
     cycles = [{'states': cycle,
                'len': len(cycle),
                'count': counts[frozenset(cycle)],
