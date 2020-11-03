@@ -115,18 +115,31 @@ class BinCounter(object):
 
 
 class HashableNdArray(object):
+    """
+    A wrapper to make numpy based state arrays hashable
+    """
     array: np.ndarray
 
     def __init__(self, array):
         self.array = array
 
+    def __repr__(self):
+        return 'HashableNdArray(array=' + repr(self.array) + ')'
+
+    def __str__(self):
+        return str(self.array)
+
     def __getitem__(self, item):
         return self.array[item]
 
     def __eq__(self, other: 'HashableNdArray'):
-        return np.all(self.array == other.array)
+        # decided on array_equiv rather than array_equal, because I don't want to worry about
+        # the case where the shape is (1,n) or (n,1) and being compared to (n,) or some
+        # other such nonsense.
+        return np.array_equiv(self.array, other.array)
 
     def __hash__(self):
+        # view the array as a ternary expansion; a bijective hash
         return int(np.dot(np.vander([3], len(self.array)), self.array))
 
 
