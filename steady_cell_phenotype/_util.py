@@ -114,12 +114,21 @@ class BinCounter(object):
         return np.trim_zeros(filt=self.bins, trim='b')
 
 
-@attrs(hash=True, cache_hash=True)
 class HashableNdArray(object):
-    array: np.ndarray = attrib()
+    array: np.ndarray
+
+    def __init__(self, array):
+        self.array = array
 
     def __getitem__(self, item):
         return self.array[item]
+
+    def __eq__(self, other: 'HashableNdArray'):
+        return np.all(self.array == other.array)
+
+    def __hash__(self):
+        return int(np.dot(np.vander([3], len(self.array)), self.array))
+
 
 def complete_search_generator(variables: List[str], constants_vals: Dict[str, int]):
     """
@@ -160,4 +169,3 @@ def random_search_generator(num_iterations, variables: List[str], constants_vals
                            for var in variables}
         state = tuple(init_state_dict[var] for var in variables)
         yield state
-
