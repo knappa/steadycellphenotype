@@ -428,7 +428,7 @@ class EquationSystem(object):
         function_str = "".join(["update_function = lambda state: np.array([",
                                 ','.join(['np.mod(' + function + ', 3)' for function in functions]),
                                 '])'])
-        print(function_str)
+        # print(function_str)
         # See https://docs.python.org/3/library/functions.html#exec
         locals_dict = dict()
         exec(function_str, globals(), locals_dict)  # now there is a 'update_function' defined

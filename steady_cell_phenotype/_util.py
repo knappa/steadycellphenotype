@@ -3,7 +3,7 @@ import html
 import itertools
 import json
 import string
-from typing import Dict, List
+from typing import Dict, List, Generator, Iterator, Union
 import numpy as np
 from attr import attrs, attrib
 from flask import render_template
@@ -75,6 +75,9 @@ def decode_int(coded_value, num_variables):
 
 @attrs
 class StreamingStats(object):
+    """
+    Implements Welform's online algorithm for mean and variance calculation. See Knuth Vol 2, pg 232
+    """
     mean: float = attrib(init=False, default=float('nan'))
     scaled_var: float = attrib(init=False, default=float('nan'))
     var: float = attrib(init=False, default=float('nan'))
@@ -99,16 +102,32 @@ class StreamingStats(object):
 
 @attrs
 class BinCounter(object):
-    bins: np.ndarray = attrib(init=False, default=np.zeros(10, dtype=np.int))
+    """
+    Utility class for streaming bincounts.
+    """
+    bins: np.ndarray = attrib(init=False, default=np.zeros(0, dtype=np.int))
     max: int = attrib(init=False, default=-1)
 
-    def add(self, datum: int):
-        if datum >= len(self.bins):
-            old_bins = self.bins
-            self.bins = np.zeros(int(1.5 * datum), dtype=np.int)
-            self.bins[:len(old_bins)] = old_bins
-        self.bins[datum] += 1
-        self.max = max(self.max, datum)
+    def total(self) -> int:
+        return int(np.sum(self.bins))
+
+    def add(self, datum: Union[int, 'BinCounter']):
+        if isinstance(datum, int):
+            if datum >= len(self.bins):
+                old_bins = self.bins
+                self.bins = np.zeros(int(1.5 * datum), dtype=np.int)
+                self.bins[:len(old_bins)] = old_bins
+            self.bins[datum] += 1
+            self.max = max(self.max, datum)
+        elif isinstance(datum, BinCounter):
+            new_max = max(self.max, datum.max)
+            new_bins = np.zeros(shape=new_max + 1)
+            new_bins[:self.max + 1] = self.bins[:self.max + 1]
+            new_bins[:datum.max + 1] += datum.bins[:datum.max + 1]
+            self.max = new_max
+            self.bins = new_bins
+        else:
+            raise RuntimeError("Cannot handle this.")
 
     def trimmed_bins(self):
         return np.trim_zeros(filt=self.bins, trim='b')
@@ -119,12 +138,16 @@ class HashableNdArray(object):
     A wrapper to make numpy based state arrays hashable
     """
     array: np.ndarray
+    hash: int
 
     def __init__(self, array):
         self.array = array
+        # view the array as a ternary expansion; a bijective hash
+        self.hash = int(np.dot(np.vander([3], len(self.array)), self.array))
 
     def __repr__(self):
-        return 'HashableNdArray(array=' + repr(self.array) + ')'
+        # return 'HashableNdArray(array=' + repr(self.array) + ')'
+        return repr(self.array)
 
     def __str__(self):
         return str(self.array)
@@ -139,17 +162,17 @@ class HashableNdArray(object):
         return np.array_equiv(self.array, other.array)
 
     def __hash__(self):
-        # view the array as a ternary expansion; a bijective hash
-        return int(np.dot(np.vander([3], len(self.array)), self.array))
+        return self.hash
 
 
-def complete_search_generator(variables: List[str], constants_vals: Dict[str, int]):
+def complete_search_generator(variables: List[str],
+                              constants_vals: Dict[str, int]) -> Iterator[np.ndarray]:
     """
     Generator which yields all possible states, with constant variables fixed
 
     Returns
     -------
-    Generator[Tuple]
+    Iterator[np.ndarray]
     """
     constants = tuple(constants_vals.keys())
     num_non_constant_vars = len(variables) - len(constants)
@@ -157,11 +180,14 @@ def complete_search_generator(variables: List[str], constants_vals: Dict[str, in
     for var_dict in map(lambda tup: dict(zip(tup[0], tup[1])),
                         zip(itertools.repeat(non_constant_vars),
                             itertools.product(range(3), repeat=num_non_constant_vars))):
-        state = tuple(var_dict[var] if var in var_dict else constants_vals[var] for var in variables)
+        state = np.fromiter((var_dict[var] if var in var_dict else constants_vals[var] for var in variables),
+                            dtype=np.int)
         yield state
 
 
-def random_search_generator(num_iterations, variables: List[str], constants_vals: Dict[str, int]):
+def random_search_generator(num_iterations,
+                            variables: List[str],
+                            constants_vals: Dict[str, int]) -> Iterator[np.ndarray]:
     """
     Generates `num_iterations` random states, with constant variables fixed.
 
@@ -173,12 +199,28 @@ def random_search_generator(num_iterations, variables: List[str], constants_vals
 
     Returns
     -------
-    Generator[Tuple]
+    Iterator[np.ndarray]
     """
     constants = tuple(constants_vals.keys())
     for _ in range(num_iterations):
         # making the choice to start constant variables at their constant values
         init_state_dict = {var: np.random.randint(3) if var not in constants else constants_vals[var]
                            for var in variables}
-        state = tuple(init_state_dict[var] for var in variables)
+        state = np.fromiter((init_state_dict[var] for var in variables), dtype=np.int)
         yield state
+
+
+def batcher(state_gen: Iterator[np.ndarray],
+            variables,
+            batch_size) -> Iterator[np.ndarray]:
+    num_variables = len(variables)
+    batch: np.ndarray
+    try:
+        while True:
+            batch = np.zeros(shape=(batch_size, num_variables))
+            for idx in range(batch_size):
+                batch[idx] = next(state_gen)
+            yield batch
+    except StopIteration:
+        # noinspection PyUnboundLocalVariable
+        yield batch[:idx, :]
