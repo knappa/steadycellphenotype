@@ -23,10 +23,9 @@ import tempfile
 import matplotlib
 from flask import Flask, request, Response, make_response
 from werkzeug.utils import secure_filename
+from ._util import *
 
 matplotlib.use('agg')
-
-from ._util import *
 
 
 def create_app(test_config=None):
@@ -51,6 +50,7 @@ def create_app(test_config=None):
     ####################################################################################################
     # some _effectively_ static pages, which share a basic template
 
+    # noinspection PyUnusedLocal
     @app.errorhandler(404)
     def page_not_found(error):
         return render_template('page_not_found.html'), 404

@@ -4,7 +4,6 @@ import functools
 from copy import deepcopy
 from typing import Tuple, Sequence, List, Callable
 
-import sympy
 from attr import attrs, attrib
 
 from poly import *
@@ -407,15 +406,15 @@ class EquationSystem(object):
 
     ################################################################################################
 
-    def as_sympy(self):
-        variables = tuple(self._equation_dict.keys())
-
-        return variables, \
-               {var: self._equation_dict[var] if is_integer(self._equation_dict[var])
-               else self._equation_dict[var].as_sympy()
-               if isinstance(self._equation_dict[var], Expression)
-               else sympy.Integer(self._equation_dict[var])
-                for var in self._equation_dict}
+    # def as_sympy(self):
+    #     variables = tuple(self._equation_dict.keys())
+    #
+    #     return variables, \
+    #            {var: self._equation_dict[var] if is_integer(self._equation_dict[var])
+    #            else self._equation_dict[var].as_sympy()
+    #            if isinstance(self._equation_dict[var], Expression)
+    #            else sympy.Integer(self._equation_dict[var])
+    #             for var in self._equation_dict}
 
     def as_numpy(self) -> Tuple[Tuple[str], Callable]:
         variables = tuple(self._equation_dict.keys())
@@ -427,7 +426,7 @@ class EquationSystem(object):
 
         function_str = "".join(["update_function = lambda state: np.array([",
                                 ','.join(['np.mod(' + function + ', 3)' for function in functions]),
-                                '])'])
+                                '], dtype=np.int64)'])
         # print(function_str)
         # See https://docs.python.org/3/library/functions.html#exec
         locals_dict = dict()

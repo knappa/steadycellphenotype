@@ -6,7 +6,6 @@ from itertools import product
 from typing import Dict, Union
 
 import numpy as np
-import sympy
 
 
 class Operation(Enum):
@@ -88,15 +87,15 @@ class Expression(object):
     def as_polynomial(self) -> Union[int, Expression]:
         raise NotImplementedError("as_polynomial() unimplemented in " + str(type(self)))
 
-    def as_sympy(self):
-        """
-        converts to sympy expression
-
-        Returns
-        -------
-        sympy expression
-        """
-        raise NotImplementedError("as_sympy() unimplemented in " + str(type(self)))
+    # def as_sympy(self):
+    #     """
+    #     converts to sympy expression
+    #
+    #     Returns
+    #     -------
+    #     sympy expression
+    #     """
+    #     raise NotImplementedError("as_sympy() unimplemented in " + str(type(self)))
 
     def as_numpy_str(self, variables) -> str:
         """
@@ -181,11 +180,11 @@ class Expression(object):
                 continuous_value = h(control_variable_value, computed_value)
                 accumulator += continuous_value * (1 - (control_variable - control_variable_value) ** 2)
             else:
-                accumulator += evaluated_poly._continuous_version_helper(control_variable_value) * \
+                accumulator += evaluated_poly.continuous_version_helper(control_variable_value) * \
                                (1 - (control_variable - control_variable_value) ** 2)
         return accumulator
 
-    def _continuous_version_helper(self, control_variable_value):
+    def continuous_version_helper(self, control_variable_value):
         # find some free variable
         free_variable = tuple(self.get_variable_set())[0]
         if isinstance(free_variable, str):
@@ -198,10 +197,10 @@ class Expression(object):
             if is_integer(evaluated_poly) or evaluated_poly.is_constant():
                 computed_value = int(evaluated_poly)
                 continuous_value = h(control_variable_value, computed_value)
-                accumulator += continuous_value * \
-                               (1 - (free_variable - free_variable_value) ** 2)
+                accumulator += \
+                    continuous_value * (1 - (free_variable - free_variable_value) ** 2)
             else:
-                accumulator += evaluated_poly._continuous_version_helper(control_variable_value) * \
+                accumulator += evaluated_poly.continuous_version_helper(control_variable_value) * \
                                (1 - (free_variable - free_variable_value) ** 2)
         return accumulator
 
@@ -374,33 +373,33 @@ class Function(Expression):
         else:
             raise Exception("cannot evaluate unknown function " + self._function_name + " as a polynomial")
 
-    def as_sympy(self):
-
-        def cont_sympy(control, expr):
-            return expr if is_integer(expr) \
-                else expr.continuous_polynomial_version(control)
-
-        def not_sympy(expr):
-            return 1 - expr
-
-        # tuples are param-count, function
-        functions = {'MAX': (2, sympy.Max),
-                     'MIN': (2, sympy.Min),
-                     'CONT': (2, cont_sympy),
-                     'NOT': (1, not_sympy)}
-
-        if self._function_name not in functions:
-            raise Exception("cannot evaluate unknown function " + self._function_name + " as a sympy expression")
-
-        if len(self._expression_list) != functions[self._function_name][0]:
-            raise Exception(f"Wrong number of arguments for {self._function_name}")
-
-        function = functions[self._function_name][1]
-
-        sympy_expressions = [sympy.Mod(expr, 3) if is_integer(expr)
-                             else sympy.Mod(expr.as_sympy(), 3)
-                             for expr in self._expression_list]
-        return function(*sympy_expressions)
+    # def as_sympy(self):
+    #
+    #     def cont_sympy(control, expr):
+    #         return expr if is_integer(expr) \
+    #             else expr.continuous_polynomial_version(control)
+    #
+    #     def not_sympy(expr):
+    #         return 1 - expr
+    #
+    #     # tuples are param-count, function
+    #     functions = {'MAX': (2, sympy.Max),
+    #                  'MIN': (2, sympy.Min),
+    #                  'CONT': (2, cont_sympy),
+    #                  'NOT': (1, not_sympy)}
+    #
+    #     if self._function_name not in functions:
+    #         raise Exception("cannot evaluate unknown function " + self._function_name + " as a sympy expression")
+    #
+    #     if len(self._expression_list) != functions[self._function_name][0]:
+    #         raise Exception(f"Wrong number of arguments for {self._function_name}")
+    #
+    #     function = functions[self._function_name][1]
+    #
+    #     sympy_expressions = [sympy.Mod(expr, 3) if is_integer(expr)
+    #                          else sympy.Mod(expr.as_sympy(), 3)
+    #                          for expr in self._expression_list]
+    #     return function(*sympy_expressions)
 
     def as_numpy_str(self, variables) -> str:
 
@@ -408,25 +407,25 @@ class Function(Expression):
                                 else expr.as_numpy_str(variables)
                                 for expr in self._expression_list]
         # this one is slow
-        #continuous_str = "( (({1})>({0})) * (({0})+1) + (({1})<({0})) * (({0})-1) + (({1})==({0}))*({0}) )"
+        # continuous_str = "( (({1})>({0})) * (({0})+1) + (({1})<({0})) * (({0})-1) + (({1})==({0}))*({0}) )"
         continuous_str = "( {0}+np.sign(np.mod({1},3)-np.mod({0},3)) )"
         max_str = "np.maximum(np.mod({0},3),np.mod({1},3))"
         min_str = "np.minimum(np.mod({0},3),np.mod({1},3))"
         not_str = "(2-({0}))"
 
         # tuples are param-count, function
-        function_strs = {'MAX': (2, max_str),
-                         'MIN': (2, min_str),
-                         'CONT': (2, continuous_str),
-                         'NOT': (1, not_str)}
+        function_strings = {'MAX': (2, max_str),
+                            'MIN': (2, min_str),
+                            'CONT': (2, continuous_str),
+                            'NOT': (1, not_str)}
 
-        if self._function_name not in function_strs:
+        if self._function_name not in function_strings:
             raise Exception("cannot evaluate unknown function " + self._function_name + " as a numpy function")
 
-        if len(self._expression_list) != function_strs[self._function_name][0]:
+        if len(self._expression_list) != function_strings[self._function_name][0]:
             raise Exception(f"Wrong number of arguments for {self._function_name}")
 
-        function = function_strs[self._function_name][1]
+        function = function_strings[self._function_name][1]
 
         return function.format(*np_parameter_strings)
 
@@ -570,38 +569,38 @@ class BinaryOperation(Expression):
         else:
             raise Exception("Unknown binary relation: " + self.relation_name)
 
-    def as_sympy(self):
-        """
-        Convert to sympy expression
-        Returns
-        -------
-        sympy expression
-        """
-
-        def simple_pow(left_exp, right_exp):
-            # simplify the exponent = 0, 1 cases
-            if is_integer(right_exp):
-                if right_exp == 0:
-                    return 1
-                elif right_exp == 1:
-                    return left_exp
-                else:
-                    return left_exp ** right_exp
-            else:
-                return left_exp ** right_exp
-
-        relations = {'PLUS': operator.add,
-                     'MINUS': operator.sub,
-                     'TIMES': operator.mul,
-                     'EXP': simple_pow}
-
-        if self.relation_name not in relations:
-            raise Exception("Unknown binary relation: " + self.relation_name)
-
-        lhs = self._left_expression if is_integer(self._left_expression) else self._left_expression.as_sympy()
-        rhs = self._right_expression if is_integer(self._right_expression) else self._right_expression.as_sympy()
-
-        return relations[self.relation_name](lhs, rhs)
+    # def as_sympy(self):
+    #     """
+    #     Convert to sympy expression
+    #     Returns
+    #     -------
+    #     sympy expression
+    #     """
+    #
+    #     def simple_pow(left_exp, right_exp):
+    #         # simplify the exponent = 0, 1 cases
+    #         if is_integer(right_exp):
+    #             if right_exp == 0:
+    #                 return 1
+    #             elif right_exp == 1:
+    #                 return left_exp
+    #             else:
+    #                 return left_exp ** right_exp
+    #         else:
+    #             return left_exp ** right_exp
+    #
+    #     relations = {'PLUS': operator.add,
+    #                  'MINUS': operator.sub,
+    #                  'TIMES': operator.mul,
+    #                  'EXP': simple_pow}
+    #
+    #     if self.relation_name not in relations:
+    #         raise Exception("Unknown binary relation: " + self.relation_name)
+    #
+    #     lhs = self._left_expression if is_integer(self._left_expression) else self._left_expression.as_sympy()
+    #     rhs = self._right_expression if is_integer(self._right_expression) else self._right_expression.as_sympy()
+    #
+    #     return relations[self.relation_name](lhs, rhs)
 
     def as_numpy_str(self, variables) -> str:
         """
@@ -713,7 +712,7 @@ class UnaryRelation(Expression):
 
         return relations[self._relation_name](expr)
 
-    def as_numpy(self, variables):
+    def as_numpy_str(self, variables):
         """
         Convert to numpy function
         Parameters
@@ -722,10 +721,10 @@ class UnaryRelation(Expression):
 
         Returns
         -------
-        lambda
+        str numpy-representation
         """
 
-        relations = {'MINUS': "(-{0})"}
+        relations = {'MINUS': "(-({0}))"}
 
         if self._relation_name not in relations:
             raise Exception("Unknown unary relation: " + self._relation_name)
@@ -1000,11 +999,11 @@ class Monomial(Expression):
                              if self._power_dict[var] > 1 else str(var) for var in variables
                              if self._power_dict[var] != 0])
 
-    def as_sympy(self):
-        # sympy empty product is 1, consistent with power_dict
-        return sympy.prod([sympy.Symbol(var, integer=True) ** pow
-                           for var, pow in self._power_dict.items()])
-        # Fun fact: sympy doesn't recognize Symbol(var) and Symbol(var, integer=True) to be the same
+    # def as_sympy(self):
+    #     # sympy empty product is 1, consistent with power_dict
+    #     return sympy.prod([sympy.Symbol(var, integer=True) ** pow
+    #                        for var, pow in self._power_dict.items()])
+    #     # Fun fact: sympy doesn't recognize Symbol(var) and Symbol(var, integer=True) to be the same
 
     def as_numpy_str(self, variables) -> str:
         if len(self._power_dict) == 0:
@@ -1225,8 +1224,8 @@ class Mod3Poly(Expression):
         else:
             return "0"
 
-    def as_sympy(self):
-        return sum([coeff * expr.as_sympy() for expr, coeff in self.coeff_dict.items()])
+    # def as_sympy(self):
+    #     return sum([coeff * expr.as_sympy() for expr, coeff in self.coeff_dict.items()])
 
     def as_numpy_str(self, variables) -> str:
         return '(' + \

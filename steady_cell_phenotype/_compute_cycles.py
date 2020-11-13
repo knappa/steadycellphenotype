@@ -384,7 +384,6 @@ def compute_cycles(model_state,
     get_key = lambda cycle: cycle[0]
     get_count = lambda cycle: trajectory_length_counts[get_key(cycle)].total()
 
-    # print(cycle_list)
     cycles = [{'states': cycle,
                'len': len(cycle),
                'count': get_count(cycle),

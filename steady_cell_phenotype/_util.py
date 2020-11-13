@@ -3,7 +3,9 @@ import html
 import itertools
 import json
 import string
-from typing import Dict, List, Generator, Iterator, Union
+from typing import Dict, List, Iterator, Union
+
+import numba
 import numpy as np
 from attr import attrs, attrib
 from flask import render_template
@@ -133,6 +135,14 @@ class BinCounter(object):
         return np.trim_zeros(filt=self.bins, trim='b')
 
 
+@numba.njit
+def ternary_hash(arr: np.ndarray) -> int:
+    accum: int = 0
+    for idx in range(len(arr)):
+        accum = 2 * accum + arr[idx]
+    return int(accum)
+
+
 class HashableNdArray(object):
     """
     A wrapper to make numpy based state arrays hashable
@@ -143,7 +153,7 @@ class HashableNdArray(object):
     def __init__(self, array):
         self.array = array
         # view the array as a ternary expansion; a bijective hash
-        self.hash = int(np.dot(np.vander([3], len(self.array)), self.array))
+        self.hash = ternary_hash(array)
 
     def __repr__(self):
         # return 'HashableNdArray(array=' + repr(self.array) + ')'
@@ -159,7 +169,7 @@ class HashableNdArray(object):
         # decided on array_equiv rather than array_equal, because I don't want to worry about
         # the case where the shape is (1,n) or (n,1) and being compared to (n,) or some
         # other such nonsense.
-        return np.array_equiv(self.array, other.array)
+        return self.hash == other.hash and np.array_equiv(self.array, other.array)
 
     def __hash__(self):
         return self.hash
@@ -181,33 +191,45 @@ def complete_search_generator(variables: List[str],
                         zip(itertools.repeat(non_constant_vars),
                             itertools.product(range(3), repeat=num_non_constant_vars))):
         state = np.fromiter((var_dict[var] if var in var_dict else constants_vals[var] for var in variables),
-                            dtype=np.int)
+                            dtype=np.int64)
         yield state
 
 
 def random_search_generator(num_iterations,
                             variables: List[str],
-                            constants_vals: Dict[str, int]) -> Iterator[np.ndarray]:
+                            constants_vals: Dict[str, int],
+                            batch_size=2000) -> Iterator[np.ndarray]:
     """
     Generates `num_iterations` random states, with constant variables fixed.
 
     Parameters
     ----------
-    num_iterations
-    variables
-    constants_vals
+    num_iterations number of iterations to generate
+    variables ordered list of lariables
+    constants_vals dictionary of variables with their constant iteration
+    batch_size
 
     Returns
     -------
     Iterator[np.ndarray]
     """
     constants = tuple(constants_vals.keys())
-    for _ in range(num_iterations):
-        # making the choice to start constant variables at their constant values
-        init_state_dict = {var: np.random.randint(3) if var not in constants else constants_vals[var]
-                           for var in variables}
-        state = np.fromiter((init_state_dict[var] for var in variables), dtype=np.int)
-        yield state
+    num_variables = len(variables)
+    constant_indices = np.array([idx for idx, var in enumerate(variables) if var in constants_vals],
+                                dtype=np.int64)
+    constant_val_arr = np.array([constants_vals[var] for var in variables if var in constants_vals],
+                                dtype=np.int64)
+    count = 0
+    while count < num_iterations:
+        init_states = np.random.randint(3, size=(batch_size, num_variables), dtype=np.int)
+        # set constant values
+        init_states[:, constant_indices] = constant_val_arr
+
+        for idx in range(batch_size):
+            yield init_states[idx, :]
+            count += 1
+            if count >= num_iterations:
+                return
 
 
 def batcher(state_gen: Iterator[np.ndarray],
