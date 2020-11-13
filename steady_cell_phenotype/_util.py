@@ -169,6 +169,9 @@ class HashableNdArray(object):
         # decided on array_equiv rather than array_equal, because I don't want to worry about
         # the case where the shape is (1,n) or (n,1) and being compared to (n,) or some
         # other such nonsense.
+        #
+        # note: as this is a performance critical point, I am not going to check the type of 'other'
+        # and instead trust that I don't do anything brain-dead.
         return self.hash == other.hash and np.array_equiv(self.array, other.array)
 
     def __hash__(self):
