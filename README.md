@@ -1,16 +1,14 @@
-# steadycellphenotype
+# SteadyCellPhenotype
 
-Computations of steady states of intracellular biological network
+A tool for the computation of steady states and dynamics of intracellular biological networks.
 
 ## Current operation
 
-The site is implemented in Python 3 using the packages `flask`, `matplotlib`, and `networkx`. This is installed by default if you
-have installed the standard anaconda distribution. Others, like me, need to use `pip` to
-install it. In that case:
+The site is implemented in Python 3 using the packages `flask`, `matplotlib`, `networkx`, `numba`, and `pathos`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
 ```
 python -m pip install flask matplotlib networkx numba pathos
 ```
-or on some Linux-based systems (certainly on Debian) you will need to run
+commonly, such as on Mac or Linux-based systems, Python 3.x is installed as `python3` and you will need to run
 ```
 python3 -m pip install flask matplotlib networkx numba pathos
 ```

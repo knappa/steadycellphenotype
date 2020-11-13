@@ -2,6 +2,9 @@
   <dictionary name="knappa">
     <words>
       <w>abril</w>
+      <w>batcher</w>
+      <w>bijective</w>
+      <w>bincounts</w>
       <w>bivariate</w>
       <w>chifman</w>
       <w>coeff</w>
@@ -20,6 +23,7 @@
       <w>laubenbacher</w>
       <w>lineno</w>
       <w>linoy</w>
+      <w>loopback</w>
       <w>moriah</w>
       <w>mult</w>
       <w>nbsp</w>
@@ -35,6 +39,7 @@
       <w>sordo</w>
       <w>stdev</w>
       <w>stdevs</w>
+      <w>steadycellphenotype</w>
       <w>symb</w>
       <w>sympy</w>
       <w>sympyify</w>

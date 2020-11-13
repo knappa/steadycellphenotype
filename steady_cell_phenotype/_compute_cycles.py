@@ -256,7 +256,7 @@ def compute_cycles(model_state,
                                                   variables=variables,
                                                   constants_vals=constants_vals)
 
-    max_threads = max(2, pathos.multiprocessing.cpu_count() - 2)
+    max_threads = max(2, pathos.multiprocessing.cpu_count() - 1)
 
     batch_generator = batcher(state_generator,
                               variables,

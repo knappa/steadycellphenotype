@@ -78,7 +78,7 @@ def decode_int(coded_value, num_variables):
 @attrs
 class StreamingStats(object):
     """
-    Implements Welform's online algorithm for mean and variance calculation. See Knuth Vol 2, pg 232
+    Implements Welford's online algorithm for mean and variance calculation. See Knuth Vol 2, pg 232
     """
     mean: float = attrib(init=False, default=float('nan'))
     scaled_var: float = attrib(init=False, default=float('nan'))
@@ -137,10 +137,10 @@ class BinCounter(object):
 
 @numba.njit
 def ternary_hash(arr: np.ndarray) -> int:
-    accum: int = 0
+    accumulator: int = 0
     for idx in range(len(arr)):
-        accum = 2 * accum + arr[idx]
-    return int(accum)
+        accumulator = 3 * accumulator + arr[idx]
+    return int(accumulator)
 
 
 class HashableNdArray(object):
@@ -204,16 +204,19 @@ def random_search_generator(num_iterations,
 
     Parameters
     ----------
-    num_iterations number of iterations to generate
-    variables ordered list of lariables
-    constants_vals dictionary of variables with their constant iteration
-    batch_size
+    num_iterations : int
+        number of iterations to generate
+    variables : List[str]
+        ordered list of variables
+    constants_vals : Dict[str, int]
+        dictionary of variables with their constant iteration
+    batch_size : int
+        size of internal batch, for performance tuning, no other external effect
 
     Returns
     -------
     Iterator[np.ndarray]
     """
-    constants = tuple(constants_vals.keys())
     num_variables = len(variables)
     constant_indices = np.array([idx for idx, var in enumerate(variables) if var in constants_vals],
                                 dtype=np.int64)
