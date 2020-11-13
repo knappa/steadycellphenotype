@@ -2,19 +2,6 @@
 
 Computations of steady states of intracellular biological network
 
-## Work in progress
-
-A work in progress, so many things are not in their final state. But it now does _something_, so it
-is worth putting it on github.
-
-There is still plenty to do here.
-
-partial TODO list: 
-* documentation
-* docker stuff
-* about the authors needs some details
-* maybe remove my email address and use github issue page for communications?
-
 ## Current operation
 
 The site is implemented in Python 3 using the packages `flask`, `matplotlib`, and `networkx`. This is installed by default if you
@@ -73,26 +60,6 @@ optional arguments:
                         gets polynomials for a power of the system. i.e. self-composition, power-1 times (default: 1) ignored for simulator Warning: This can take a long
                         time!
 ```
-
-### Continuity
-
-DOC TODO
-
-### Simulator
-
-DOC TODO
-
-### Graph Simulator
-
-DOC TODO
-
-### Initial Values
-
-DOC TODO
-
-### Minor options
-
-DOC TODO
 
 ## Notes:
 

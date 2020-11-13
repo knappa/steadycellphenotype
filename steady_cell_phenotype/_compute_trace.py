@@ -6,7 +6,6 @@ import tempfile
 import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
-import numpy as np
 from flask import Markup, make_response, Response
 
 from equation_system import EquationSystem
