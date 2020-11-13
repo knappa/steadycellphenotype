@@ -21,11 +21,11 @@ The site is implemented in Python 3 using the packages `flask`, `matplotlib`, an
 have installed the standard anaconda distribution. Others, like me, need to use `pip` to
 install it. In that case:
 ```
-python -m pip install flask matplotlib networkx
+python -m pip install flask matplotlib networkx numba pathos
 ```
 or on some Linux-based systems (certainly on Debian) you will need to run
 ```
-python3 -m pip install flask matplotlib networkx
+python3 -m pip install flask matplotlib networkx numba pathos
 ```
 
 

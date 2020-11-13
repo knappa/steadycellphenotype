@@ -23,6 +23,8 @@
       <w>moriah</w>
       <w>mult</w>
       <w>nbsp</w>
+      <w>ndarray</w>
+      <w>noninfringement</w>
       <w>outputfile</w>
       <w>parsable</w>
       <w>pcbi</w>
@@ -31,13 +33,18 @@
       <w>quickstart</w>
       <w>recurses</w>
       <w>sordo</w>
+      <w>stdev</w>
+      <w>stdevs</w>
       <w>symb</w>
       <w>sympy</w>
+      <w>sympyify</w>
       <w>tokenization</w>
       <w>tokenizes</w>
       <w>univariate</w>
+      <w>vals</w>
       <w>vieira</w>
       <w>viktor</w>
+      <w>welford's</w>
     </words>
   </dictionary>
 </component>

@@ -23,7 +23,10 @@
             </div>
         </div>
 
-        <textarea class="w3-input w3-border w3-round w3-border-black" name="model" autocomplete="off" rows="{{ rows }}"
+        <textarea class="w3-input w3-border w3-round w3-border-black"
+                  name="model"
+                  spellcheck="false"
+                  autocomplete="off" rows="{{ rows }}"
                   autofocus placeholder="The model goes here">{% if model_text %}{{ model_text }}{% endif %}</textarea>
     </div>
 </form>

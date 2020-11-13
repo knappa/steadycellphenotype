@@ -23,10 +23,9 @@ import tempfile
 import matplotlib
 from flask import Flask, request, Response, make_response
 from werkzeug.utils import secure_filename
+from ._util import *
 
 matplotlib.use('agg')
-
-from ._util import *
 
 
 def create_app(test_config=None):
@@ -39,7 +38,7 @@ def create_app(test_config=None):
         UPLOAD_FOLDER=tempfile.TemporaryDirectory(),  # TODO: does this make sense??? doesn't work without it
         # added to assist when developing, should be removed in production
         TEMPLATES_AUTO_RELOAD=True,
-        )
+    )
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -51,6 +50,7 @@ def create_app(test_config=None):
     ####################################################################################################
     # some _effectively_ static pages, which share a basic template
 
+    # noinspection PyUnusedLocal
     @app.errorhandler(404)
     def page_not_found(error):
         return render_template('page_not_found.html'), 404
@@ -83,7 +83,7 @@ def create_app(test_config=None):
         try:
             tsv = request.form['model_result'].strip()
             return Response(
-                tsv,
+                tsv + '\n',  # For parsing
                 mimetype="text/tab-separated-values",
                 headers={"Content-disposition": "attachment; filename=model_result.tsv"})
         except KeyError:
@@ -169,6 +169,10 @@ def create_app(test_config=None):
                      for variable in variables
                      if request.form['{}-KO'.format(variable)] != 'None'}
 
+        # get which variables to visualize
+        visualize_variables = {variable.strip(): True if '{}-visualized'.format(variable) in request.form else False
+                               for variable in variables}
+
         # get initial state
         init_state = dict()
         for variable in variables:
@@ -197,7 +201,7 @@ def create_app(test_config=None):
                 'The request was ill-formed, please go back to the main page and try again'))
             return response_set_model_cookie(response, model_state)
         elif request.form['action'] == 'cycles':
-            return compute_cycles(model_state, knockout_model, variables, continuous, num_iterations)
+            return compute_cycles(model_state, knockouts, continuous, num_iterations, visualize_variables)
         elif request.form['action'] == 'fixed_points':
             return compute_fixed_points(model_state, knockout_model, variables, continuous)
         elif request.form['action'] == 'trace':
