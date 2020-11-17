@@ -3,22 +3,21 @@ import shutil
 import subprocess
 import tempfile
 
-import matplotlib
 from flask import make_response
+import matplotlib
 
 from ._util import *
 
 matplotlib.use('agg')
 
 
-def compute_fixed_points(model_state, knockout_model, variables, continuous):
+def compute_fixed_points(knockout_model, variables, continuous):
     """ Run the fixed-point finding computation """
 
     # check to make sure that we have macaulay installed
     macaulay_executable = shutil.which('M2')
     if macaulay_executable is None:
-        response = make_response(error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
-        return response_set_model_cookie(response, model_state)
+        return make_response(error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
 
     # we are set to do the computation
     with tempfile.TemporaryDirectory() as tmp_dir_name:
@@ -40,10 +39,9 @@ def compute_fixed_points(model_state, knockout_model, variables, continuous):
                            capture_output=True)
 
         if convert_to_poly_process.returncode != 0:
-            response = make_response(error_report(
+            return make_response(error_report(
                 'Error running converter!\n{}\n{}'.format(html_encode(convert_to_poly_process.stdout),
                                                           html_encode(convert_to_poly_process.stderr))))
-            return response_set_model_cookie(response, model_state)
 
         with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
                 open(tmp_dir_name + '/find_steady_states.m2', 'w') as macaulay_script:
@@ -60,12 +58,11 @@ def compute_fixed_points(model_state, knockout_model, variables, continuous):
                            capture_output=True)
         if find_steady_states_process.returncode != 0:
             with open(tmp_dir_name + '/model-polys.txt', 'r') as poly_file:
-                response = make_response(error_report(
+                return make_response(error_report(
                     'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
                         html_encode(find_steady_states_process.stdout),
                         html_encode(find_steady_states_process.stderr),
                         html_encode(poly_file.read()))))
-            return response_set_model_cookie(response, model_state)
 
         def process_line(line):
             line = line.strip()
@@ -89,10 +86,8 @@ def compute_fixed_points(model_state, knockout_model, variables, continuous):
             with open(tmp_dir_name + '/results.txt', 'r') as file:
                 fixed_points = [process_line(line) for line in file]
         except (IOError, RuntimeError):
-            response = make_response(error_report('Malformed response from Macaulay!'))
-            return response_set_model_cookie(response, model_state)
+            return make_response(error_report('Malformed response from Macaulay!'))
 
     # respond with the results-of-computation page
-    response = make_response(
+    return make_response(
         render_template('compute-fixed-points.html', variables=variables, fixed_points=fixed_points))
-    return response_set_model_cookie(response, model_state)

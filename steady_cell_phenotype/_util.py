@@ -1,14 +1,13 @@
-import datetime
 import html
 import itertools
-import json
+import re
 import string
-from typing import Dict, List, Iterator, Union
+from typing import Dict, Iterator, List, Union
 
+from attr import attrib, attrs
+from flask import render_template
 import numba
 import numpy as np
-from attr import attrs, attrib
-from flask import render_template
 
 MAX_SUPPORTED_VARIABLE_STATES = 6
 
@@ -24,11 +23,11 @@ def error_report(error_string):
     return render_template('error.html', error_message=error_string)
 
 
-def response_set_model_cookie(response, model_state):
-    # set cookie expiration 90 days hence
-    expire_date = datetime.datetime.now() + datetime.timedelta(days=90)
-    response.set_cookie('state', json.dumps(model_state), expires=expire_date)
-    return response
+# def response_set_model_cookie(response, model_state):
+#     # set cookie expiration 90 days hence
+#     expire_date = datetime.datetime.now() + datetime.timedelta(days=90)
+#     response.set_cookie('state', json.dumps(model_state), expires=expire_date)
+#     return response
 
 
 def get_model_variables(model):
@@ -37,7 +36,8 @@ def get_model_variables(model):
     too_many_eq_msg = "Count of ='s on line {lineno} was {eq_count} but each line must have a single = sign."
     zero_len_var_msg = "No variable found before = on line {lineno}."
     zero_len_rhs_msg = "No right hand side of equation on line {lineno}."
-    invalid_var_name_msg = "One line {lineno}, variable name must be alpha-numeric and include at least one letter."
+    invalid_var_name_msg = "One line {lineno}, variable name must be alpha-numeric (plus underscore), " \
+                           "and begin with a letter."
     for lineno, line in enumerate(model.splitlines(), start=1):
         # check for _one_ equals sign
         if line.count('=') != 1:
@@ -49,7 +49,8 @@ def get_model_variables(model):
         # check to see if lhs is a valid symbol. TODO: what variable names does convert.py allow?
         if len(variable) == 0:
             raise Exception(zero_len_var_msg.format(lineno=lineno))
-        if not variable.isalnum() or not any(c in string.ascii_letters for c in variable):
+        if not re.match(r'^\w+$', variable) or \
+                variable[0] not in string.ascii_letters:  # TODO: 2nd test may be redundant
             raise Exception(invalid_var_name_msg.format(lineno=lineno))
         variables.append(variable)
         # do _minimal_ checking on RHS
@@ -117,13 +118,13 @@ class BinCounter(object):
         if isinstance(datum, int):
             if datum >= len(self.bins):
                 old_bins = self.bins
-                self.bins = np.zeros(int(1.5 * datum), dtype=np.int)
+                self.bins = np.zeros(1 + int(1.5 * datum), dtype=np.int)
                 self.bins[:len(old_bins)] = old_bins
             self.bins[datum] += 1
             self.max = max(self.max, datum)
         elif isinstance(datum, BinCounter):
             new_max = max(self.max, datum.max)
-            new_bins = np.zeros(shape=new_max + 1)
+            new_bins = np.zeros(shape=(new_max + 1))
             new_bins[:self.max + 1] = self.bins[:self.max + 1]
             new_bins[:datum.max + 1] += datum.bins[:datum.max + 1]
             self.max = new_max
@@ -245,7 +246,7 @@ def batcher(state_gen: Iterator[np.ndarray],
     batch: np.ndarray
     try:
         while True:
-            batch = np.zeros(shape=(batch_size, num_variables))
+            batch = np.zeros(shape=(batch_size, num_variables), dtype=np.int64)
             for idx in range(batch_size):
                 batch[idx] = next(state_gen)
             yield batch

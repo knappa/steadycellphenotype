@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-import functools
 from copy import deepcopy
-from typing import Tuple, Sequence, List, Callable
+import functools
+from typing import Callable, List, Sequence, Tuple
 
-from attr import attrs, attrib
+from attr import attrib, attrs
 
 from poly import *
 
@@ -88,11 +88,9 @@ def tokenize(input_string: str) -> Sequence[Tuple[str, Union[str, int]]]:
             # must be a name or constant. can be of variable length, terminated by punctuation or
             # whitespace
             index = 0
-            while (
-                    index < len(input_string)
-                    and not input_string[index] in punctuation
-                    and not input_string[index] in whitespace
-            ):
+            while (index < len(input_string)
+                   and not input_string[index] in punctuation
+                   and not input_string[index] in whitespace):
                 index += 1
             if index > 0:
                 try:
@@ -135,7 +133,7 @@ def find_all(find_token_string, formula):
 
 def translate_to_expression(
         formula: Sequence[Tuple[str, Union[str, int]]]
-) -> ExpressionOrInt:
+        ) -> ExpressionOrInt:
     """
     recursive descent parser for formula translation
     recurses left-to-right, building the formula on the way back up
@@ -233,7 +231,7 @@ def translate_to_expression(
         ):
             raise ParseError(
                 "Parse error, must have form FUNCTION OPEN_PAREN ... CLOSE_PAREN"
-            )
+                )
 
         # lop off the function name and parentheses
         inner_formula = formula[2:-1]
@@ -241,7 +239,7 @@ def translate_to_expression(
         if function_name in UNIVARIATE_FUNCTIONS:
             argument = translate_to_expression(
                 inner_formula
-            )  # may throw ParseError, which we do not catch here
+                )  # may throw ParseError, which we do not catch here
             # we succeed!
             return Function(function_name, [argument])
         elif function_name in BIVARIATE_FUNCTIONS:
@@ -251,7 +249,7 @@ def translate_to_expression(
                     argument_one = translate_to_expression(inner_formula[0:comma_index])
                     argument_two = translate_to_expression(
                         inner_formula[comma_index + 1:]
-                    )
+                        )
                     # if we succeed, return the function
                     return Function(function_name, [argument_one, argument_two])
                 except ParseError:
@@ -287,7 +285,7 @@ def evaluate_parallel_helper(pair, mapping_dict):
 
 def continuity_helper(
         control_variable: str, equation: ExpressionOrInt, continuous_vars: Sequence[str]
-) -> Tuple[str, ExpressionOrInt]:
+        ) -> Tuple[str, ExpressionOrInt]:
     """
     Because python won't let you use lambdas in multiprocessing
     :param control_variable:
@@ -302,7 +300,7 @@ def continuity_helper(
     else:
         return control_variable, equation.continuous_polynomial_version(
             control_variable
-        )
+            )
 
 
 def polynomial_output_parallel_helper(equation: ExpressionOrInt) -> ExpressionOrInt:
@@ -328,7 +326,7 @@ class EquationSystem(object):
             *,
             formula_symbol_table: List[str] = None,
             equation_dict: Dict[str, ExpressionOrInt] = None
-    ):
+            ):
         if formula_symbol_table is not None and equation_dict is not None:
             self._formula_symbol_table = deepcopy(formula_symbol_table)
             self._equation_dict = deepcopy(equation_dict)
@@ -338,7 +336,7 @@ class EquationSystem(object):
         else:
             raise RuntimeError(
                 "Must specify either an empty system, or both formula_symbol_table and equation_dict"
-            )
+                )
 
     @staticmethod
     def from_text(lines: str) -> EquationSystem:
@@ -359,11 +357,11 @@ class EquationSystem(object):
         equation_dict = {
             target_var: eqn.as_polynomial() if isinstance(eqn, Expression) else eqn
             for target_var, eqn in self._equation_dict.items()
-        }
+            }
 
         return EquationSystem(
             formula_symbol_table=formula_symbol_table, equation_dict=equation_dict
-        )
+            )
 
     def symbol_table(self):
         return set(self._formula_symbol_table).union(self._equation_dict.keys())
@@ -379,14 +377,14 @@ class EquationSystem(object):
             var
             for var, eqn in self._equation_dict.items()
             if type(eqn) != int and not eqn.is_constant()
-        ]
+            ]
 
     def constant_variables(self) -> List[str]:
         return [
             var
             for var, eqn in self._equation_dict.items()
             if type(eqn) == int or eqn.is_constant()
-        ]
+            ]
 
     def consistent(self) -> bool:
         """
@@ -464,20 +462,20 @@ class EquationSystem(object):
                         [
                             (var, eqn, continuous_vars)
                             for var, eqn in self._equation_dict.items()
-                        ],
+                            ],
+                        )
                     )
-                )
         else:
             continuous_equations = {
                 control_variable: continuity_helper(
                     control_variable, equation, continuous_vars
-                )
+                    )
                 for control_variable, equation in self._equation_dict.items()
-            }
+                }
         return EquationSystem(
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
-        )
+            )
 
     ################################################################################################
 
@@ -501,7 +499,7 @@ class EquationSystem(object):
         continuous_equations = {
             var: Function('CONT', [Monomial.as_var(var), expr]) if var in continuous_vars else expr
             for var, expr in self._equation_dict.items()
-        }
+            }
 
         return EquationSystem(formula_symbol_table=self._formula_symbol_table,
                               equation_dict=continuous_equations)
@@ -562,18 +560,18 @@ class EquationSystem(object):
                 # start mapping via eval
                 evaluator = functools.partial(
                     evaluate_parallel_helper, mapping_dict=other._equation_dict
-                )
+                    )
                 composed_dict = dict(pool.map(evaluator, tuple(self._equation_dict.items())))
         else:
             composed_dict = {
                 target_var: eqn.eval(other._equation_dict)
                 for target_var, eqn in self._equation_dict
-            }
+                }
 
         return EquationSystem(
             formula_symbol_table=deepcopy(self._formula_symbol_table),
             equation_dict=composed_dict,
-        )
+            )
 
     def self_compose(self, count: int) -> EquationSystem:
         assert count >= 0, "negative powers unsupported!"
@@ -584,8 +582,8 @@ class EquationSystem(object):
                 formula_symbol_table=self._formula_symbol_table,
                 equation_dict={
                     var: Monomial.as_var(var) for var in self._equation_dict.keys()
-                },
-            )
+                    },
+                )
         elif count == 1:
             return self
         elif count % 2 == 0:
@@ -595,7 +593,7 @@ class EquationSystem(object):
             pseudo_square_root_system = self.self_compose(count // 2)
             return pseudo_square_root_system.compose(pseudo_square_root_system).compose(
                 self
-            )
+                )
 
     ################################################################################################
 
@@ -605,7 +603,7 @@ class EquationSystem(object):
         else:
             return "\n".join(
                 [str(var) + "=" + str(eqn) for var, eqn in self._equation_dict.items()]
-            )
+                )
 
     __repr__ = __str__
 
@@ -670,7 +668,7 @@ class EquationSystem(object):
         # gather the symbols from the function, which may not all be new
         symbols = [
             symbol for (type_str, symbol) in tokenized_formula if type_str == "SYMBOL"
-        ]
+            ]
 
         equation = translate_to_expression(tokenized_formula)
 

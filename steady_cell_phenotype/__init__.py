@@ -20,9 +20,10 @@
 
 import tempfile
 
+from flask import Flask, make_response, request, Response, session
 import matplotlib
-from flask import Flask, request, Response, make_response
 from werkzeug.utils import secure_filename
+
 from ._util import *
 
 matplotlib.use('agg')
@@ -38,7 +39,7 @@ def create_app(test_config=None):
         UPLOAD_FOLDER=tempfile.TemporaryDirectory(),  # TODO: does this make sense??? doesn't work without it
         # added to assist when developing, should be removed in production
         TEMPLATES_AUTO_RELOAD=True,
-    )
+        )
 
     if test_config is None:
         # load the instance config, if it exists, when not testing
@@ -109,16 +110,27 @@ def create_app(test_config=None):
                     with open(filename, 'r') as file:
                         model_from_file = file.read().strip()
 
-        model_state_cookie = request.cookies.get('state')
-        if model_state_cookie is not None and model_state_cookie != '':
-            model_state = json.loads(model_state_cookie)
-            model_text = model_state['model']
-            if model_from_file is not None:
-                model_text = model_from_file
-            model_lines = model_text.count('\n')
-            return render_template('index.html', model_text=model_text, rows=max(10, model_lines + 2))
-        else:
-            return render_template('index.html', rows=10)
+        if session.new or 'model_text' not in session:
+            session.permanent = True
+            session['model_text'] = ''
+
+        if model_from_file is not None:
+            session['model_text'] = model_from_file
+
+        model_text = session['model_text']
+        model_lines = model_text.count('\n')
+        return render_template('index.html', model_text=model_text, rows=max(10, model_lines + 2))
+
+        # model_state_cookie = request.cookies.get('state')
+        # if model_state_cookie is not None and model_state_cookie != '':
+        #     model_state = json.loads(model_state_cookie)
+        #     model_text = model_state['model']
+        #     if model_from_file is not None:
+        #         model_text = model_from_file
+        #     model_lines = model_text.count('\n')
+        #     return render_template('index.html', model_text=model_text, rows=max(10, model_lines + 2))
+        # else:
+        #     return render_template('index.html', rows=10)
 
     ####################################################################################################
     # main computational page
@@ -127,38 +139,51 @@ def create_app(test_config=None):
     def compute():
         """ render the results of computation page """
 
-        # load existing state cookie, if it exists and makes sense
-        model_state_cookie = request.cookies.get('state')
-        if model_state_cookie is not None and model_state_cookie != '':
-            try:
-                model_state = json.loads(model_state_cookie)
-            except json.JSONDecodeError:
-                response = make_response(error_report(
-                    "For some reason, we could not parse the cookie for this site. " +
-                    "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
-                return response_set_model_cookie(response, dict())
-        else:
-            # respond with an error message if submission is ill-formed
-            response = make_response(error_report(
-                "We couldn't find the cookie which contains your model, " +
-                "please go back to the main page and try again"))
-            return response_set_model_cookie(response, dict())
-
-        # respond with an error message if submission is ill-formed
-        if 'model' not in model_state:
-            response = make_response(error_report(
-                'The cookie which contains your model is ill-formed, please go back to the main page and try again'))
-            return response_set_model_cookie(response, dict())
+        if session.new or 'model_text' not in session:
+            return make_response(error_report(
+                "Please go to the main page to enter your model."))
 
         # get the variable list and right hand sides
-        model = model_state['model']
+        model_text = session['model_text']
         try:
             # attempt to get the variable list
-            variables, right_sides = get_model_variables(model)
+            variables, right_sides = get_model_variables(model_text)
         except Exception as e:
             # respond with an error message if submission is ill-formed
-            response = make_response(error_report(str(e)))
-            return response_set_model_cookie(response, model_state)
+            return make_response(error_report(str(e)))
+
+        # # load existing state cookie, if it exists and makes sense
+        # model_state_cookie = request.cookies.get('state')
+        # if model_state_cookie is not None and model_state_cookie != '':
+        #     try:
+        #         model_state = json.loads(model_state_cookie)
+        #     except json.JSONDecodeError:
+        #         response = make_response(error_report(
+        #             "For some reason, we could not parse the cookie for this site. " +
+        #             "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
+        #         return response_set_model_cookie(response, dict())
+        # else:
+        #     # respond with an error message if submission is ill-formed
+        #     response = make_response(error_report(
+        #         "We couldn't find the cookie which contains your model, " +
+        #         "please go back to the main page and try again"))
+        #     return response_set_model_cookie(response, dict())
+        #
+        # # respond with an error message if submission is ill-formed
+        # if 'model' not in model_state:
+        #     response = make_response(error_report(
+        #         'The cookie which contains your model is ill-formed, please go back to the main page and try again'))
+        #     return response_set_model_cookie(response, dict())
+        #
+        # # get the variable list and right hand sides
+        # model_text = model_state['model']
+        # try:
+        #     # attempt to get the variable list
+        #     variables, right_sides = get_model_variables(model_text)
+        # except Exception as e:
+        #     # respond with an error message if submission is ill-formed
+        #     response = make_response(error_report(str(e)))
+        #     return response_set_model_cookie(response, model_state)
 
         # decide which variables the user specified as continuous
         continuous = {variable.strip(): True if '{}-continuous'.format(variable) in request.form else False
@@ -180,6 +205,7 @@ def create_app(test_config=None):
             if form_name in request.form and request.form[form_name] != 'None':
                 init_state[variable.strip()] = request.form[form_name]
 
+        # TODO: equation-system supports this now, should move to that.
         knockout_model = ""
         for variable, rhs in zip(variables, right_sides):
             if variable in knockouts:
@@ -197,15 +223,14 @@ def create_app(test_config=None):
 
         # decide which type of computation to run
         if 'action' not in request.form or request.form['action'] not in ['cycles', 'fixed_points', 'trace']:
-            response = make_response(error_report(
+            return make_response(error_report(
                 'The request was ill-formed, please go back to the main page and try again'))
-            return response_set_model_cookie(response, model_state)
         elif request.form['action'] == 'cycles':
-            return compute_cycles(model_state, knockouts, continuous, num_iterations, visualize_variables)
+            return compute_cycles(model_text, knockouts, continuous, num_iterations, visualize_variables)
         elif request.form['action'] == 'fixed_points':
-            return compute_fixed_points(model_state, knockout_model, variables, continuous)
+            return compute_fixed_points(knockout_model, variables, continuous)
         elif request.form['action'] == 'trace':
-            return compute_trace(model_state, knockout_model, variables, continuous, init_state, check_nearby)
+            return compute_trace(model_text, knockout_model, variables, continuous, init_state, check_nearby)
         else:
             return str(request.form)
 
@@ -223,40 +248,50 @@ def create_app(test_config=None):
     @app.route('/options/', methods=['POST'])
     def options():
         """ model options page """
+
+        if session.new or 'model_text' not in session:
+            return make_response(error_report(
+                "Please go to the main page to enter your model."))
+
         # get submitted model from form
-        model = request.form['model'].strip()
-
-        # load existing state cookie, if it exists, and update model
-        model_state_cookie = request.cookies.get('state')
-        if model_state_cookie is not None and model_state_cookie != '':
-            try:
-                model_state = json.loads(model_state_cookie)
-            except json.JSONDecodeError:
-                response = make_response(error_report(
-                    "For some reason, we could not parse the cookie for this site. " +
-                    "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
-                return response_set_model_cookie(response, dict())
-        else:
-            model_state = dict()
-        model_state['model'] = model
-
+        model_text = request.form['model'].strip()
+        session['model_text'] = model_text
         try:
             # attempt to get the variable list
-            variables, right_sides = get_model_variables(model)
+            variables, right_sides = get_model_variables(model_text)
         except Exception as e:
             # respond with an error message if submission is ill-formed
-            response = make_response(error_report(str(e)))
-            return response_set_model_cookie(response, model_state)
+            return make_response(error_report(str(e)))
+
+        # # load existing state cookie, if it exists, and update model
+        # model_state_cookie = request.cookies.get('state')
+        # if model_state_cookie is not None and model_state_cookie != '':
+        #     try:
+        #         model_state = json.loads(model_state_cookie)
+        #     except json.JSONDecodeError:
+        #         return make_response(error_report(
+        #             "For some reason, we could not parse the cookie for this site. " +
+        #             "We just tried to clear it, but if the error persists clear the cookie manually and try again."))
+        #
+        # else:
+        #     model_state = dict()
+        # model_state['model'] = model
+        #
+        # try:
+        #     # attempt to get the variable list
+        #     variables, right_sides = get_model_variables(model)
+        # except Exception as e:
+        #     # respond with an error message if submission is ill-formed
+        #     return make_response(error_report(str(e)))
 
         # cleanup the model
         model = ""
         for variable, rhs in zip(variables, right_sides):
             model += "{v} = {r}\n".format(v=variable, r=rhs)
-        model_state['model'] = model
+        session['model_text'] = model
 
         # respond with the options page
-        response = make_response(render_template('options.html', variables=variables))
-        return response_set_model_cookie(response, model_state)
+        return make_response(render_template('options.html', variables=variables))
 
     ####################################################################################################
     # startup boilerplate

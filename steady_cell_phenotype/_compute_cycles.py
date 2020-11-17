@@ -1,12 +1,12 @@
+from collections import defaultdict
 import functools
 import tempfile
-from collections import defaultdict
-from typing import Tuple, Callable
+from typing import Callable, Tuple
 
+from flask import make_response, Markup
 import matplotlib
 import matplotlib.pyplot as plt
 import pathos
-from flask import Markup, make_response
 
 from equation_system import EquationSystem
 from ._util import *
@@ -57,7 +57,7 @@ def get_trajectory(init_state, update_fn) \
 
     # get trajectory with phase
     phase_idx: int = len(trajectory) - len(limit_cycle) + cycle_min_index
-    phased_trajectory = np.array([hashable.array for hashable in trajectory[:phase_idx]])
+    phased_trajectory = np.array([hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64)
 
     return phased_trajectory, trajectory[phase_idx]
 
@@ -81,7 +81,6 @@ def batch_trajectory_process(batch, update_fn) \
 
     for batch_idx in range(num_samples):
         trajectory, phase_state = get_trajectory(batch[batch_idx, :], update_fn)
-
         trajectory_length_counts[phase_state].add(len(trajectory))
 
         # extract arrays, to reduce dict lookup again
@@ -91,6 +90,10 @@ def batch_trajectory_process(batch, update_fn) \
 
         old_len = data_count.shape[0]
         trajectory_len = trajectory.shape[0]
+
+        if trajectory_len == 0:
+            continue
+
         # resize, if necessary
         if old_len < trajectory_len:
             # extend data_count
@@ -216,12 +219,12 @@ def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
     return trajectory_length_counts, data_counts, means, variances
 
 
-def compute_cycles(model_state,
+def compute_cycles(model_text,
                    knockouts,
                    continuous,
                    num_iterations: int,
                    visualize_variables: Dict[str, bool]):
-    equation_system = EquationSystem.from_text(model_state['model'])
+    equation_system = EquationSystem.from_text(model_text)
     equation_system = equation_system.continuous_functional_system(
         continuous_vars=tuple([var for var in continuous if continuous[var]]))
     equation_system = equation_system.knockout_system(knockouts)
@@ -394,9 +397,8 @@ def compute_cycles(model_state,
                if get_key(cycle) in limit_set_stats_images else dict(), }
               for cycle in cycle_list]
     # respond with the results-of-computation page
-    response = make_response(render_template('compute-cycles.html',
-                                             cycles=cycles,
-                                             variables=variables,
-                                             cycle_len_counts=cycle_len_counts,
-                                             complete_results=perform_complete_search))
-    return response_set_model_cookie(response, model_state)
+    return make_response(render_template('compute-cycles.html',
+                                         cycles=cycles,
+                                         variables=variables,
+                                         cycle_len_counts=cycle_len_counts,
+                                         complete_results=perform_complete_search))

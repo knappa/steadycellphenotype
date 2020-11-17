@@ -3,10 +3,10 @@ import shutil
 import subprocess
 import tempfile
 
+from flask import make_response, Markup, Response
 import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
-from flask import Markup, make_response, Response
 
 from equation_system import EquationSystem
 from ._util import *
@@ -14,7 +14,7 @@ from ._util import *
 matplotlib.use('agg')
 
 
-def run_model_with_init_val(init_state, knockout_model, variables, continuous, model_state, equation_system):
+def run_model_with_init_val(init_state, knockout_model, variables, continuous, equation_system):
     with tempfile.TemporaryDirectory() as tmp_dir_name:
         with open(tmp_dir_name + '/model.txt', 'w') as model_file:
             model_file.write(knockout_model)
@@ -41,10 +41,9 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, m
                            capture_output=True)
 
         if convert_to_c_process.returncode != 0:
-            response = make_response(error_report(
+            return make_response(error_report(
                 'Error running converter!\n{}\n{}'.format(html_encode(convert_to_c_process.stdout),
                                                           html_encode(convert_to_c_process.stderr))))
-            return response_set_model_cookie(response, model_state)
 
         # copy the header files over
         subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmp_dir_name])
@@ -63,18 +62,16 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, m
             subprocess.run([compiler, '-O3', tmp_dir_name + '/model.c', '-o', tmp_dir_name + '/model'],
                            capture_output=True)
         if compilation_process.returncode != 0:
-            response = make_response(error_report(
+            return make_response(error_report(
                 'Error running compiler!\n{}\n{}'.format(html_encode(compilation_process.stdout),
                                                          html_encode(compilation_process.stderr))))
-            return response_set_model_cookie(response, model_state)
 
         simulation_process = \
             subprocess.run([tmp_dir_name + '/model'], capture_output=True)
         if simulation_process.returncode != 0:
-            response = make_response(error_report(
+            return make_response(error_report(
                 'Error running simulator!\n{}\n{}'.format(html_encode(simulation_process.stdout),
                                                           html_encode(simulation_process.stderr))))
-            return response_set_model_cookie(response, model_state)
 
         simulator_output = json.loads(simulation_process.stdout.decode())
         edge_list = simulator_output['edges']
@@ -94,7 +91,6 @@ def run_model_variable_initial_values(init_state,
                                       knockout_model,
                                       variables,
                                       continuous,
-                                      model_state,
                                       equation_system,
                                       check_nearby):
     """
@@ -106,7 +102,6 @@ def run_model_variable_initial_values(init_state,
     knockout_model
     variables
     continuous
-    model_state
     equation_system
     check_nearby
 
@@ -170,7 +165,6 @@ def run_model_variable_initial_values(init_state,
                                                   knockout_model,
                                                   variables,
                                                   continuous,
-                                                  model_state,
                                                   equation_system))
     return edge_lists
 
@@ -253,17 +247,16 @@ def graph_layout(g):
     return pos
 
 
-def compute_trace(model_state, knockout_model, variables, continuous, init_state, check_nearby):
+def compute_trace(model_text, knockout_model, variables, continuous, init_state, check_nearby):
     """ Run the cycle finding simulation for an initial state """
     # TODO: initially copied from compute_cycles, should look for code duplication and refactoring
     #  opportunities
-    equation_system = EquationSystem.from_text(model_state['model'])
+    equation_system = EquationSystem.from_text(model_text)
 
     edge_lists = run_model_variable_initial_values(init_state,
                                                    knockout_model,
                                                    variables,
                                                    continuous,
-                                                   model_state,
                                                    equation_system,
                                                    check_nearby)
 
@@ -365,13 +358,12 @@ def compute_trace(model_state, knockout_model, variables, continuous, init_state
             trajectory_image = Markup(image.read())
 
     # respond with the results-of-computation page
-    response = make_response(render_template('compute-trace.html',
-                                             variables=equation_system.target_variables(),
-                                             num_edge_lists=len(edge_lists),
-                                             trajectories=list(zip(edge_lists,
-                                                                   return_states,
-                                                                   source_labels,
-                                                                   map(len, edge_lists),
-                                                                   variable_level_plots)),
-                                             trajectory_image=trajectory_image))
-    return response_set_model_cookie(response, model_state)
+    return make_response(render_template('compute-trace.html',
+                                         variables=equation_system.target_variables(),
+                                         num_edge_lists=len(edge_lists),
+                                         trajectories=list(zip(edge_lists,
+                                                               return_states,
+                                                               source_labels,
+                                                               map(len, edge_lists),
+                                                               variable_level_plots)),
+                                         trajectory_image=trajectory_image))
