@@ -4,11 +4,8 @@ import subprocess
 import tempfile
 
 from flask import make_response
-import matplotlib
 
 from ._util import *
-
-matplotlib.use('agg')
 
 
 def compute_fixed_points(knockout_model, variables, continuous):

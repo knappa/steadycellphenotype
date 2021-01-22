@@ -1,5 +1,6 @@
 from collections import defaultdict
 import functools
+from math import ceil
 import tempfile
 from typing import Callable, Tuple
 
@@ -328,9 +329,16 @@ def compute_cycles(model_text,
             plt.title(f'Phased Envelope of trajectories for {var}')
 
             plt.xlabel('Distance to phase-fixing point on limit cycle')
-            plt.xticks(range(len(var_means) + len(cycle) + 1),
-                       list(range(len(var_means), -1 - len(cycle), -1)),
-                       rotation=90)
+            max_tick_goal = 40
+            tick_gap = max(1, ceil((len(var_means) + len(cycle) + 1) / max_tick_goal))
+            x_tick_locations = [x for x in range(0, len(var_means) + len(cycle) + 1)
+                                if (x - len(var_means)) % tick_gap == 0]
+            x_tick_labels = list(map(lambda x: len(var_means) - x,
+                                     x_tick_locations))
+            plt.xticks(x_tick_locations, x_tick_labels, rotation=90)
+            # plt.xticks(range(len(var_means) + len(cycle) + 1),
+            #            list(range(len(var_means), -1 - len(cycle), -1)),
+            #            rotation=90)
             plt.xlim([0, len(var_means) + len(cycle)])
             plt.axvline(len(var_means), linestyle='dotted', color='grey')
             plt.axvline(len(var_means) - len(cycle), linestyle='dotted', color='grey')
@@ -387,11 +395,11 @@ def compute_cycles(model_text,
     def get_count(cyc):
         return trajectory_length_counts[get_key(cyc)].total()
 
-    cycles = [{'states': cycle,
-               'len': len(cycle),
-               'count': get_count(cycle),
-               'percent': 100 * get_count(cycle) / num_iterations,
-               'len-dist-image': length_distribution_images[get_key(cycle)]
+    cycles = [{'states'                : cycle,
+               'len'                   : len(cycle),
+               'count'                 : get_count(cycle),
+               'percent'               : 100 * get_count(cycle) / num_iterations,
+               'len-dist-image'        : length_distribution_images[get_key(cycle)]
                if get_key(cycle) in length_distribution_images else "",
                'limit-set-stats-images': limit_set_stats_images[get_key(cycle)]
                if get_key(cycle) in limit_set_stats_images else dict(), }
