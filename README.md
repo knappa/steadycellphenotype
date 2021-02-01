@@ -4,15 +4,14 @@ A tool for the computation of steady states and dynamics of intracellular biolog
 
 ## Current operation
 
-The site is implemented in Python 3 using the packages `flask`, `matplotlib`, `networkx`, `numba`, and `pathos`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
+The site is implemented in Python 3 using the packages `flask`, `matplotlib`, `networkx`, `numba`, `pathos`, and `attrs`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
 ```
-python -m pip install flask matplotlib networkx numba pathos
+python -m pip install flask matplotlib networkx numba pathos attrs
 ```
 commonly, such as on Mac or Linux-based systems, Python 3.x is installed as `python3` and you will need to run
 ```
-python3 -m pip install flask matplotlib networkx numba pathos
+python3 -m pip install flask matplotlib networkx numba pathos attrs
 ```
-
 
 Then, on mac or linux, the site can then be started by 
 ```
@@ -26,6 +25,23 @@ mean is that
 
 The flask documentation contains info on how to get the thing working for remote users.  [Flask
 documentation](https://flask.palletsprojects.com/en/1.1.x/)
+
+## Using a virtual environment
+
+If you encounter compatibility errors between various python and package versions on your computer, it may be useful to create a virtual environment with project-specific versions. (e.g. as of this writing there are issues with the current versions of numba and python 3.9 on MacOS.) To create a virtual environment, first find the desired version of python on your machine. (We assume 3.8 below.) _Hint_: On MacOS and Linux, we can use
+```
+find / -name python3.8 2>&1 | grep -v "Permission denied"
+```
+to find all copies of the python 3.8 executable on the system. Then, using the desired copy of python, run
+```
+/whatever/path/to/python/you/found/python3.8 -m venv stdy-cll-phntyp-venv
+```
+replacing `stdy-cll-phntyp-venv` with whatever folder name you desire the virtual environment to reside in. (Often we choose `venv` inside of the source directory.) All packages which we install will reside in this directory. Then whenever we want to enter the virtual environment, we run
+```
+source stdy-cll-phntyp-venv/bin/activate
+```
+You will need to install packages locally to the virtual environment.
+
 
 # `convert.py` command-line usage
 
@@ -61,5 +77,4 @@ optional arguments:
 
 ## Notes:
 
-[Here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can
-get Debian packages for Macaulay2. 
+Instructions on obtaining Macaulay2 are [here](http://www2.macaulay2.com/Macaulay2/Downloads/). In particular, [here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can get Debian packages. 
