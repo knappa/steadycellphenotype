@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import json
 
 from flask import make_response, Markup, Response
 import matplotlib
