@@ -68,7 +68,7 @@
     <form action="/download-tsv/" method="POST">
     <textarea name="model_result" style="display: none;">Length	sample%	{% for var in variables %}{{ var }}	{% endfor %}
 {% for cycle in cycles %}{{ cycle['len'] }}	{{ cycle['percent'] }}
-{% for state in cycle['states'] %}		{% for key in state %}{{ state[key] }}	{% endfor %}
+{% for state in cycle['states'] %}		{% for value in state %}{{ value }}	{% endfor %}
 {% endfor %}
 {% endfor %}      
 </textarea>
