@@ -1,24 +1,29 @@
 # SteadyCellPhenotype
 
-A tool for the computation of steady states and dynamics of intracellular biological networks.
+A tool for the computation of steady states and exploration of dynamics in intracellular biological networks.
 
 ## Current operation
 
-The site is implemented in Python 3 using the packages `flask`, `matplotlib`, `networkx`, `numba`, `pathos`, and `attrs`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
+The app is implemented in Python 3 with the help of a variety of packages including `flask`, `matplotlib`, `networkx`, `numba`, `pathos`, and `attrs`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
 ```
-python -m pip install flask matplotlib networkx numba pathos attrs
+python -m pip install -r requirements.txt
 ```
-commonly, such as on Mac or Linux-based systems, Python 3.x is installed as `python3` and you will need to run
+from the `steadycellphenotype` directory. Commonly, such as on Mac or Linux-based systems, Python 3.x is installed as `python3` and you will need to run
 ```
-python3 -m pip install flask matplotlib networkx numba pathos attrs
+python3 -m pip install -r requirements.txt
 ```
 
 Then, on mac or linux, the site can then be started by 
 ```
-./start.sh
+./start_scp.sh
 ```
-Assuming that you are in the top directory of this project. This will open up a web server on the loopback address on port 5000. If that's gibberish, what I
-mean is that
+You can also install SteadyCellPhenotype as a python package via pip:
+```
+python3 -m pip install -e .
+```
+This will add two executables to your path, `start_scp.sh` and `scp_converter.py`. You can also install SteadyCellPhenotype in a virtual environment, see below, which may help with package versioning issues. 
+
+Assuming that you are in the top directory of this project. This will open up a web server on the loopback address on port 5000. If that's gibberish, what I mean is that
 * It won't be accessible to the broader internet and
 * On the same machine, you can point your web browser at
   [http://localhost:5000](http://localhost:5000) and access the site.
