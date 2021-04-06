@@ -1,270 +1,149 @@
 import json
-import os
-import shutil
-import subprocess
+from pathlib import Path
 import tempfile
+from typing import Set
 
 from flask import make_response, Markup, Response
 import matplotlib
 import matplotlib.pyplot as plt
-import networkx as nx
 
 from steady_cell_phenotype._util import *
-from steady_cell_phenotype.equation_system import EquationSystem
 
 matplotlib.use('agg')
 
 
-def run_model_with_init_val(init_state, knockout_model, variables, continuous, equation_system):
-    with tempfile.TemporaryDirectory() as tmp_dir_name:
-        with open(tmp_dir_name + '/model.txt', 'w') as model_file:
-            model_file.write(knockout_model)
-            model_file.write('\n')
+def get_trajectory_edge_list(*,
+                             init_state: np.ndarray,
+                             update_fn: Callable,
+                             target_variables: Tuple[str]) -> List[Dict[str, Dict]]:
+    phased_trajectory: np.ndarray
+    phased_trajectory, phase_point = get_trajectory(init_state=init_state, update_fn=update_fn)
 
-        non_continuous_vars = [variable for variable in variables if not continuous[variable]]
-        if len(non_continuous_vars) > 0:
-            continuity_params = ['-c', '-comit'] + [variable for variable in variables
-                                                    if not continuous[variable]]
-        else:
-            continuity_params = ['-c']
-
-        init_state_params = []
-        if len(init_state) > 0:
-            init_state_params += ['-init-val']
-            for key, value in init_state.items():
-                init_state_params += [key, str(value)]
-
-        convert_to_c_process = \
-            subprocess.run([get_resource_path('scp_converter.py'), '-graph',
-                            '--count', '1',
-                            '-i', tmp_dir_name + '/model.txt',
-                            '-o', tmp_dir_name + '/model.c'] + init_state_params + continuity_params,
-                           capture_output=True)
-
-        if convert_to_c_process.returncode != 0:
-            return make_response(error_report(
-                'Error running converter!\n{}\n{}'.format(html_encode(convert_to_c_process.stdout),
-                                                          html_encode(convert_to_c_process.stderr))))
-
-        # copy the header files over
-        subprocess.run(['cp', os.getcwd() + '/mod3ops.h', tmp_dir_name])
-        subprocess.run(['cp', os.getcwd() + '/bloom-filter.h', tmp_dir_name])
-        subprocess.run(['cp', os.getcwd() + '/cycle-table.h', tmp_dir_name])
-        subprocess.run(['cp', os.getcwd() + '/length-count-array.h', tmp_dir_name])
-        subprocess.run(['cp', os.getcwd() + '/link-table.h', tmp_dir_name])
-
-        # be fancy about compiler selection
-        installed_compilers = [shutil.which('clang'), shutil.which('gcc'), shutil.which('cc')]
-        compiler = installed_compilers[0] if installed_compilers[0] is not None \
-            else installed_compilers[1] if installed_compilers[1] is not None \
-            else installed_compilers[2]
-
-        compilation_process = \
-            subprocess.run([compiler, '-O3', tmp_dir_name + '/model.c', '-o', tmp_dir_name + '/model'],
-                           capture_output=True)
-        if compilation_process.returncode != 0:
-            return make_response(error_report(
-                'Error running compiler!\n{}\n{}'.format(html_encode(compilation_process.stdout),
-                                                         html_encode(compilation_process.stderr))))
-
-        simulation_process = \
-            subprocess.run([tmp_dir_name + '/model'], capture_output=True)
-        if simulation_process.returncode != 0:
-            return make_response(error_report(
-                'Error running simulator!\n{}\n{}'.format(html_encode(simulation_process.stdout),
-                                                          html_encode(simulation_process.stderr))))
-
-        simulator_output = json.loads(simulation_process.stdout.decode())
-        edge_list = simulator_output['edges']
-
-        num_variables = len(equation_system.target_variables())
-        edge_list = [{'source': dict(zip(equation_system.target_variables(),
-                                         decode_int(edge['source'], num_variables))),
-                      'target': dict(zip(equation_system.target_variables(),
-                                         decode_int(edge['target'], num_variables))),
-                      'step':   int(edge['step'])}
-                     for edge in edge_list]
-        edge_list = sorted(edge_list, key=lambda edge: edge['step'])
+    edge_list = [{'source': dict(zip(target_variables,
+                                     phased_trajectory[i, :])),
+                  'target': dict(zip(target_variables,
+                                     phased_trajectory[i + 1, :]))}
+                 for i in range(phased_trajectory.shape[0] - 1)]
     return edge_list
 
 
-def run_model_variable_initial_values(init_state,
-                                      knockout_model,
-                                      variables,
-                                      continuous,
-                                      equation_system,
-                                      check_nearby):
+def add_nearby_states(init_states: List[np.ndarray]) -> List[np.ndarray]:
+    """
+    Adds all states Hamming distance 1 from an init state to the list
+    Parameters
+    ----------
+    init_states
+
+    Returns
+    -------
+    init_states plus hamming distance one states. Order not preserved.
+    """
+    if len(init_states) <= 0:
+        return []
+
+    new_init_states: Set[HashableNdArray] = set()
+    num_vars: int = init_states[0].shape[0]
+
+    # add all Hamming distance `dist` states from the initial states
+    for state in init_states:
+        for idx in range(num_vars):
+            for val in range(3):
+                if abs(state[idx] - val) <= 1:
+                    new_state = state.copy()
+                    new_state[idx] = val
+                    new_init_states.add(HashableNdArray(new_state))
+
+    return [state.array for state in new_init_states]
+
+
+def run_model_variable_initial_values(*,
+                                      init_state_prototype: Dict[str, str],
+                                      variables: List[str],
+                                      update_fn: Callable,
+                                      equation_system: EquationSystem,
+                                      check_nearby: bool) -> List:
     """
     Run the model on possibly *'ed sets of initial conditions
 
     Parameters
     ----------
-    init_state
-    knockout_model
+    init_state_prototype
+        A dictionary of variable names and their initial values {0,1,2,*} where * is a wildcard
     variables
-    continuous
+        The variables of the model, in order
+    update_fn
     equation_system
     check_nearby
+        If true, we include states Hamming distance 1 from the initial state(s).
 
     Returns
     -------
-    List
+    List of edges
     """
 
-    # deal with any *'ed variables
-    def get_states(initial_state, remaining_variable_states):
+    # expand any *'ed variables
+    def get_states(initial_state: Dict[str, str],
+                   remaining_variable_states: List[str]) -> List[np.ndarray]:
         if len(remaining_variable_states) == 0:
-            return [initial_state]
+            return [np.array([int(initial_state[var]) for var in variables], dtype=np.int64)]
         else:
             initial_states = []
             for val in range(3):
                 resolved_state = initial_state.copy()
-                resolved_state[remaining_variable_states[0]] = val
+                resolved_state[remaining_variable_states[0]] = str(val)
                 initial_states += get_states(resolved_state, remaining_variable_states[1:])
             return initial_states
 
-    variable_states = [k for k in init_state if init_state[k] == '*']
-    init_states = get_states(init_state, variable_states)
+    variable_states = [k for k in init_state_prototype if init_state_prototype[k] == '*']
+    try:
+        init_states: List[np.ndarray] = get_states(init_state_prototype, variable_states)
+    except ValueError:
+        raise Exception(make_response(error_report(
+                "Error constructing initial states"
+                )))
 
     # check to see if we will be overloaded
     if len(variable_states) > MAX_SUPPORTED_VARIABLE_STATES:
-        return make_response(error_report(
-            f"Web platform is limited to {MAX_SUPPORTED_VARIABLE_STATES} variable states."))
+        raise Exception(make_response(error_report(
+                f"Web platform is limited to {MAX_SUPPORTED_VARIABLE_STATES} variable states.")))
 
     if check_nearby:
-        nearby_states = []
-        for state in init_states:
-            if state not in nearby_states:
-                nearby_states.append(state)
-            for variable in variables:
-                if str(state[variable]) == '0':
-                    near_state = state.copy()
-                    near_state[variable] = '1'
-                    if near_state not in nearby_states:
-                        nearby_states.append(near_state)
-                elif str(state[variable]) == '1':
-                    near_state = state.copy()
-                    near_state[variable] = '0'
-                    if near_state not in nearby_states:
-                        nearby_states.append(near_state)
-                    near_state = state.copy()
-                    near_state[variable] = '2'
-                    if near_state not in nearby_states:
-                        nearby_states.append(near_state)
-                elif str(state[variable]) == '2':
-                    near_state = state.copy()
-                    near_state[variable] = '1'
-                    if near_state not in nearby_states:
-                        nearby_states.append(near_state)
-                else:
-                    assert False, "invalid state!: '" + str(state[variable]) + "' " + str(type(state[variable]))
-        init_states = nearby_states
+        init_states = add_nearby_states(init_states)
 
     edge_lists = []
     for state in init_states:
-        edge_lists.append(run_model_with_init_val(state,
-                                                  knockout_model,
-                                                  variables,
-                                                  continuous,
-                                                  equation_system))
+        edge_lists.append(get_trajectory_edge_list(init_state=state,
+                                                   update_fn=update_fn,
+                                                   target_variables=equation_system.target_variables()))
     return edge_lists
 
 
-def connected_component_layout(g: nx.DiGraph):
-    """
-    lay out a graph with a single connected component,
-    returns dictionary of positions and width/height of bounding box
-    """
-
-    # get attractor (fixed point or cycle)
-    attractor_set = next(nx.attracting_components(g))
-    cycle_len = len(attractor_set)
-
-    # no guarantee the attractor set is in the proper order:
-    base_point = next(iter(attractor_set))
-    cycle = [base_point]
-    # in python 3.8+ you have assignment expressions:
-    # while (next_point := list(g.successors(cycle[-1]))[0]) != base_point:
-    #    cycle.append(next_point)
-    next_point = list(g.successors(cycle[-1]))[0]
-    while next_point != base_point:
-        cycle.append(next_point)
-        next_point = list(g.successors(cycle[-1]))[0]
-
-    pos = dict()
-
-    # Note: networkx has 'node_size'==300 but it is unclear what units those are
-    def recurse_layout(successor, level, max_theta, min_theta):
-        predecessors = [predecessor
-                        for predecessor in g.predecessors(successor)
-                        if predecessor != successor and predecessor not in pos]
-        if len(predecessors) == 0:
-            return
-        delta_theta = (max_theta - min_theta) / (len(predecessors) + 1)
-        for k, predecessor in enumerate(predecessors):
-            theta_k = min_theta + (k + 1) * delta_theta
-            pos[predecessor] = level * np.array([np.cos(theta_k),
-                                                 np.sin(theta_k)])
-            recurse_layout(predecessor, level + 1, min_theta + (k + 1.5) * delta_theta,
-                           min_theta + (k + 0.5) * delta_theta)
-
-    # lay out the cycle:
-    if cycle_len == 1:
-        pos[base_point] = np.array([0.0, 0.0])
-        recurse_layout(base_point, 1, 2 * np.pi, 0)
-    else:
-        for n, point in enumerate(cycle):
-            theta = 2 * np.pi * (n + 0.5) / cycle_len
-            pos[point] = np.array([np.cos(theta), np.sin(theta)])
-        for n, point in enumerate(cycle):
-            recurse_layout(point, 2,
-                           2 * np.pi * (n + 1) / cycle_len,
-                           2 * np.pi * n / cycle_len)
-    # move corner
-    pos_array = np.array(list(pos.values()))
-    offset = np.min(pos_array, axis=0)
-    pos = {node: pt - offset for node, pt in pos.items()}
-    return pos, np.max(pos_array, axis=0) - offset
-
-
-def graph_layout(g):
-    # lay out connected components, in bounding boxes. then offset
-    # noinspection PyTypeChecker
-    components_layouts = [
-        connected_component_layout(nx.subgraph_view(g, filter_node=lambda vertex: vertex in component_vertices))
-        for component_vertices in nx.weakly_connected_components(g)]
-    pos = dict()
-    corner = np.array([0.0, 0.0])
-    running_y = 0.0
-    for component_pos, geom in components_layouts:
-        running_y = max(running_y, geom[1])
-        for node in component_pos:
-            pos[node] = component_pos[node] + corner
-        corner += np.array([geom[0] + 1.0, 0])
-        if corner[0] > 20.0:
-            corner[0] = 0
-            corner[1] += running_y
-            running_y = 0.0
-    return pos
-
-
-def compute_trace(model_text, knockout_model, variables, continuous, init_state, check_nearby):
+def compute_trace(*,
+                  model_text: str,
+                  knockouts: Dict[str, str],
+                  continuous: Dict[str, bool],
+                  init_state: Dict[str, str],
+                  visualize_variables: Dict[str, bool],
+                  check_nearby: bool):
     """ Run the cycle finding simulation for an initial state """
-    # TODO: initially copied from compute_cycles, should look for code duplication and refactoring
-    #  opportunities
-    equation_system = EquationSystem.from_text(model_text)
 
-    edge_lists = run_model_variable_initial_values(init_state,
-                                                   knockout_model,
-                                                   variables,
-                                                   continuous,
-                                                   equation_system,
-                                                   check_nearby)
+    # create an update function and equation system
+    variables, update_fn, equation_system = process_model_text(model_text, knockouts, continuous)
 
-    # can return responses, if there is an error, return any such error response
-    for edge in edge_lists:
-        if isinstance(edge, Response):
-            return edge
+    # construction of initial values can fail with an exception that contains a response
+    try:
+        edge_lists = run_model_variable_initial_values(init_state_prototype=init_state,
+                                                       variables=variables,
+                                                       update_fn=update_fn,
+                                                       equation_system=equation_system,
+                                                       check_nearby=check_nearby)
+    except Exception as e:
+        payload, _ = e.args
+        if type(payload) in {str, Response}:
+            return payload
+        else:
+            # should not occur
+            return make_response(error_report("Unknown error"))
 
     def to_key(edges):
         return frozenset(edges.items())
@@ -290,6 +169,47 @@ def compute_trace(model_text, knockout_model, variables, continuous, init_state,
 
     source_labels = [[labels[to_key(edge['source'])] for edge in edge_list] for edge_list in edge_lists]
 
+    variable_level_plots = plot_variable_levels_for_trajectories(edge_lists=edge_lists,
+                                                                 return_states=return_states,
+                                                                 source_labels=source_labels,
+                                                                 variables=variables,
+                                                                 visualize_variables=visualize_variables)
+
+    # create data for the javascript
+    nodes_json = json.dumps([{'id': label} for label in labels.values()])
+
+    edge_tuples = set()
+    for edge_list in edge_lists:
+        edge_tuples.update({(labels[to_key(edge['source'])], labels[to_key(edge['target'])])
+                            for edge in edge_list})
+    edge_json = json.dumps([{'source': source, 'target': target} for (source, target) in edge_tuples])
+
+    # respond with the results-of-computation page
+    return make_response(render_template('compute-trace.html',
+                                         variables=equation_system.target_variables(),
+                                         num_edge_lists=len(edge_lists),
+                                         trajectories=list(zip(edge_lists,
+                                                               return_states,
+                                                               source_labels,
+                                                               map(len, edge_lists),
+                                                               variable_level_plots)),
+                                         nodes=nodes_json,
+                                         links=edge_json))
+
+
+def plot_variable_levels_for_trajectories(*,
+                                          edge_lists,
+                                          return_states,
+                                          source_labels,
+                                          variables: List[str],
+                                          visualize_variables: Dict[str, bool]):
+    # mask for which variables to viz
+    visualize_variable_mask = np.array([visualize_variables[var] for var in variables], dtype=bool)
+
+    if np.sum(visualize_variable_mask) <= 0:
+        # no viz requested
+        return [''] * len(edge_lists)
+
     # draw a visualization of variable levels
     variable_level_plots = []
     for n, edge_list in enumerate(edge_lists):
@@ -302,7 +222,7 @@ def compute_trace(model_text, knockout_model, variables, continuous, init_state,
             for variable in variables]).T
 
         # plot
-        plt.plot(data)
+        plt.plot(data[:, visualize_variable_mask])
 
         # note the repeat region
         if return_states[n] in source_labels[n]:
@@ -317,54 +237,17 @@ def compute_trace(model_text, knockout_model, variables, continuous, init_state,
         plt.gca().set_xticklabels(source_labels[n] + [return_states[n]])
 
         # legend and labels
-        plt.legend(variables, bbox_to_anchor=(1.04, 1), loc="center left")
+        plt.legend(np.array(variables)[visualize_variable_mask],
+                   bbox_to_anchor=(1.04, 1),
+                   loc="center left")
         plt.ylabel("Level")
         plt.xlabel("State")
         plt.tight_layout()
         image_filename = f'levels{n}.svg'
         with tempfile.TemporaryDirectory() as tmp_dir_name:
-            plt.savefig(tmp_dir_name + '/' + image_filename, transparent=True, pad_inches=0.0)
+            tmp_file = Path(tmp_dir_name) / image_filename
+            plt.savefig(tmp_file, transparent=True, pad_inches=0.0)
             plt.close()
-            with open(tmp_dir_name + '/' + image_filename, 'r') as image:
+            with open(tmp_file, 'r') as image:
                 variable_level_plots.append(Markup(image.read()))
-
-    # trace visualization
-    g = nx.DiGraph()
-    for edge_list in edge_lists:
-        for edge in edge_list:
-            source = to_key(edge['source'])
-            target = to_key(edge['target'])
-            g.add_edge(labels[source], labels[target])
-
-    # lay out the graph
-    pos = graph_layout(g)
-
-    # get overall geometry
-    pos_array = np.array(list(pos.values()))
-    width, height = np.max(pos_array, axis=0) - np.min(pos_array, axis=0)
-
-    # draw the damned thing
-    plt.rcParams['svg.fonttype'] = 'none'
-    fig_height = min(3, max(100, width / height))
-    plt.figure(figsize=(4, fig_height))
-    nx.draw(g,
-            pos=pos,
-            with_labels=True)
-    plt.title('Trajectory')
-    image_filename = 'trajectory.svg'
-    with tempfile.TemporaryDirectory() as tmp_dir_name:
-        plt.savefig(tmp_dir_name + '/' + image_filename, transparent=True, pad_inches=0.0)
-        plt.close()
-        with open(tmp_dir_name + '/' + image_filename, 'r') as image:
-            trajectory_image = Markup(image.read())
-
-    # respond with the results-of-computation page
-    return make_response(render_template('compute-trace.html',
-                                         variables=equation_system.target_variables(),
-                                         num_edge_lists=len(edge_lists),
-                                         trajectories=list(zip(edge_lists,
-                                                               return_states,
-                                                               source_labels,
-                                                               map(len, edge_lists),
-                                                               variable_level_plots)),
-                                         trajectory_image=trajectory_image))
+    return variable_level_plots

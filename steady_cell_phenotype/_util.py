@@ -4,30 +4,32 @@ import itertools
 import pathlib
 import re
 import string
-from typing import Dict, Iterator, List, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Tuple, Union
 
 from attr import attrib, attrs
 from flask import render_template
 import numba
 import numpy as np
 
+from steady_cell_phenotype.equation_system import EquationSystem
+
 MAX_SUPPORTED_VARIABLE_STATES = 6
 
 
 def get_resource_path(filename: str) -> pathlib.Path:
     """
-        Obtain the location of scp's data files regardless of package location.
+    Obtain the location of scp's data files regardless of package location.
 
-        Parameters
-        ----------
-        filename: str
-            File to obtain
-        Returns
-        -------
-        File's contents as a string
-        """
+    Parameters
+    ----------
+    filename: str
+        File to obtain
+    Returns
+    -------
+    File's contents as a string
+    """
     # See: https://docs.python.org/3.7/library/importlib.html#module-importlib.resources
-    with importlib.resources.path('steady_cell_phenotype', filename) as path:
+    with importlib.resources.path("steady_cell_phenotype", filename) as path:
         return path
 
 
@@ -44,7 +46,9 @@ def get_text_resource(filename: str) -> str:
     File's contents as a string
     """
     # See: https://docs.python.org/3.7/library/importlib.html#module-importlib.resources
-    with importlib.resources.open_text('steady_cell_phenotype', filename) as file_handle:
+    with importlib.resources.open_text(
+            "steady_cell_phenotype", filename
+            ) as file_handle:
         data = file_handle.read()
     return data
 
@@ -52,42 +56,41 @@ def get_text_resource(filename: str) -> str:
 def html_encode(msg):
     if type(msg) is not str:
         msg = msg.decode()
-    return html.escape(msg).replace('\n', '<br>').replace(' ', '&nbsp')
+    return html.escape(msg).replace("\n", "<br>").replace(" ", "&nbsp")
 
 
 def error_report(error_string):
     """ display error reports from invalid user input """
-    return render_template('error.html', error_message=error_string)
+    return render_template("error.html", error_message=error_string)
 
 
-# def response_set_model_cookie(response, model_state):
-#     # set cookie expiration 90 days hence
-#     expire_date = datetime.datetime.now() + datetime.timedelta(days=90)
-#     response.set_cookie('state', json.dumps(model_state), expires=expire_date)
-#     return response
-
-
-def get_model_variables(model):
-    variables = []
-    right_sides = []
+def get_model_variables(model) -> Tuple[List[str], List[str]]:
+    variables: List[str] = []
+    right_sides: List[str] = []
     too_many_eq_msg = "Count of ='s on line {lineno} was {eq_count} but each line must have a single = sign."
     zero_len_var_msg = "No variable found before = on line {lineno}."
     zero_len_rhs_msg = "No right hand side of equation on line {lineno}."
-    invalid_var_name_msg = "One line {lineno}, variable name must be alpha-numeric (plus underscore), " \
-                           "and begin with a letter."
+    invalid_var_name_msg = (
+        "One line {lineno}, variable name must be alpha-numeric (plus underscore), "
+        "and begin with a letter."
+    )
     for lineno, line in enumerate(model.splitlines(), start=1):
         # check for _one_ equals sign
-        if line.count('=') != 1:
-            raise Exception(too_many_eq_msg.format(lineno=lineno,
-                                                   eq_count=line.count('=')))
-        variable, rhs = line.split('=')
+        if line.count("=") != 1:
+            raise Exception(
+                    too_many_eq_msg.format(lineno=lineno, eq_count=line.count("="))
+                    )
+        variable: str
+        rhs: str
+        variable, rhs = line.split("=")
         variable = variable.strip()
         rhs = rhs.strip()
         # check to see if lhs is a valid symbol. TODO: what variable names does scp_converter.py allow?
         if len(variable) == 0:
             raise Exception(zero_len_var_msg.format(lineno=lineno))
-        if not re.match(r'^\w+$', variable) or \
-                variable[0] not in string.ascii_letters:  # TODO: 2nd test may be redundant
+        if (
+                not re.match(r"^\w+$", variable) or variable[0] not in string.ascii_letters
+        ):  # TODO: 2nd test may be redundant
             raise Exception(invalid_var_name_msg.format(lineno=lineno))
         variables.append(variable)
         # do _minimal_ checking on RHS
@@ -100,7 +103,7 @@ def get_model_variables(model):
 def decode_int(coded_value, num_variables):
     """ Decode long-form int into trinary """
     if isinstance(coded_value, str):
-        if coded_value[:2] == '0x':
+        if coded_value[:2] == "0x":
             coded_value = int(coded_value, 16)
         else:
             coded_value = int(coded_value)
@@ -118,9 +121,10 @@ class StreamingStats(object):
     """
     Implements Welford's online algorithm for mean and variance calculation. See Knuth Vol 2, pg 232
     """
-    mean: float = attrib(init=False, default=float('nan'))
-    scaled_var: float = attrib(init=False, default=float('nan'))
-    var: float = attrib(init=False, default=float('nan'))
+
+    mean: float = attrib(init=False, default=float("nan"))
+    scaled_var: float = attrib(init=False, default=float("nan"))
+    var: float = attrib(init=False, default=float("nan"))
     count: int = attrib(init=False, default=0)
 
     def add(self, datum: float):
@@ -145,32 +149,33 @@ class BinCounter(object):
     """
     Utility class for streaming bincounts.
     """
+
     bins: np.ndarray = attrib(init=False, default=np.zeros(0, dtype=int))
     max: int = attrib(init=False, default=-1)
 
     def total(self) -> int:
         return int(np.sum(self.bins))
 
-    def add(self, datum: Union[int, 'BinCounter']):
+    def add(self, datum: Union[int, "BinCounter"]):
         if isinstance(datum, int):
             if datum >= len(self.bins):
                 old_bins = self.bins
                 self.bins = np.zeros(1 + int(1.5 * datum), dtype=int)
-                self.bins[:len(old_bins)] = old_bins
+                self.bins[: len(old_bins)] = old_bins
             self.bins[datum] += 1
             self.max = max(self.max, datum)
         elif isinstance(datum, BinCounter):
             new_max = max(self.max, datum.max)
             new_bins = np.zeros(shape=(new_max + 1))
-            new_bins[:self.max + 1] = self.bins[:self.max + 1]
-            new_bins[:datum.max + 1] += datum.bins[:datum.max + 1]
+            new_bins[: self.max + 1] = self.bins[: self.max + 1]
+            new_bins[: datum.max + 1] += datum.bins[: datum.max + 1]
             self.max = new_max
             self.bins = new_bins
         else:
             raise RuntimeError("Cannot handle this.")
 
     def trimmed_bins(self):
-        return np.trim_zeros(filt=self.bins, trim='b')
+        return np.trim_zeros(filt=self.bins, trim="b")
 
 
 @numba.njit
@@ -185,6 +190,7 @@ class HashableNdArray(object):
     """
     A wrapper to make numpy based state arrays hashable
     """
+
     array: np.ndarray
     hash: int
 
@@ -203,7 +209,7 @@ class HashableNdArray(object):
     def __getitem__(self, item):
         return self.array[item]
 
-    def __eq__(self, other: 'HashableNdArray'):
+    def __eq__(self, other: "HashableNdArray"):
         # decided on array_equiv rather than array_equal, because I don't want to worry about
         # the case where the shape is (1,n) or (n,1) and being compared to (n,) or some
         # other such nonsense.
@@ -216,8 +222,9 @@ class HashableNdArray(object):
         return self.hash
 
 
-def complete_search_generator(variables: List[str],
-                              constants_vals: Dict[str, int]) -> Iterator[np.ndarray]:
+def complete_search_generator(
+        variables: List[str], constants_vals: Dict[str, int]
+        ) -> Iterator[np.ndarray]:
     """
     Generator which yields all possible states, with constant variables fixed
 
@@ -228,18 +235,29 @@ def complete_search_generator(variables: List[str],
     constants = tuple(constants_vals.keys())
     num_non_constant_vars = len(variables) - len(constants)
     non_constant_vars = list(set(variables) - set(constants))
-    for var_dict in map(lambda tup: dict(zip(tup[0], tup[1])),
-                        zip(itertools.repeat(non_constant_vars),
-                            itertools.product(range(3), repeat=num_non_constant_vars))):
-        state = np.fromiter((var_dict[var] if var in var_dict else constants_vals[var] for var in variables),
-                            dtype=np.int64)
+    for var_dict in map(
+            lambda tup: dict(zip(tup[0], tup[1])),
+            zip(
+                    itertools.repeat(non_constant_vars),
+                    itertools.product(range(3), repeat=num_non_constant_vars),
+                    ),
+            ):
+        state = np.fromiter(
+                (
+                    var_dict[var] if var in var_dict else constants_vals[var]
+                    for var in variables
+                    ),
+                dtype=np.int64,
+                )
         yield state
 
 
-def random_search_generator(num_iterations,
-                            variables: List[str],
-                            constants_vals: Dict[str, int],
-                            batch_size=2000) -> Iterator[np.ndarray]:
+def random_search_generator(
+        num_iterations,
+        variables: List[str],
+        constants_vals: Dict[str, int],
+        batch_size=2000,
+        ) -> Iterator[np.ndarray]:
     """
     Generates `num_iterations` random states, with constant variables fixed.
 
@@ -259,10 +277,14 @@ def random_search_generator(num_iterations,
     Iterator[np.ndarray]
     """
     num_variables = len(variables)
-    constant_indices = np.array([idx for idx, var in enumerate(variables) if var in constants_vals],
-                                dtype=np.int64)
-    constant_val_arr = np.array([constants_vals[var] for var in variables if var in constants_vals],
-                                dtype=np.int64)
+    constant_indices = np.array(
+            [idx for idx, var in enumerate(variables) if var in constants_vals],
+            dtype=np.int64,
+            )
+    constant_val_arr = np.array(
+            [constants_vals[var] for var in variables if var in constants_vals],
+            dtype=np.int64,
+            )
     count = 0
     while count < num_iterations:
         init_states = np.random.randint(3, size=(batch_size, num_variables), dtype=int)
@@ -276,9 +298,9 @@ def random_search_generator(num_iterations,
                 return
 
 
-def batcher(state_gen: Iterator[np.ndarray],
-            variables,
-            batch_size) -> Iterator[np.ndarray]:
+def batcher(
+        state_gen: Iterator[np.ndarray], variables, batch_size
+        ) -> Iterator[np.ndarray]:
     num_variables = len(variables)
     batch: np.ndarray
     try:
@@ -292,8 +314,7 @@ def batcher(state_gen: Iterator[np.ndarray],
         yield batch[:idx, :]
 
 
-def get_trajectory(init_state, update_fn) \
-        -> Tuple[np.ndarray, HashableNdArray]:
+def get_trajectory(init_state: np.ndarray, update_fn: Callable) -> Tuple[np.ndarray, HashableNdArray]:
     """
     evolve an initial state until it reaches a limit cycle
 
@@ -310,7 +331,9 @@ def get_trajectory(init_state, update_fn) \
     trajectory = list()
     trajectory_set = set()  # set lookup should be faster
 
-    t_state = HashableNdArray(state)  # apparently, conversion from ndarray to tuple is _slow_
+    t_state = HashableNdArray(
+            state
+            )  # apparently, conversion from ndarray to tuple is _slow_
     while t_state not in trajectory_set:
         trajectory.append(t_state)
         trajectory_set.add(t_state)
@@ -335,6 +358,25 @@ def get_trajectory(init_state, update_fn) \
 
     # get trajectory with phase
     phase_idx: int = len(trajectory) - len(limit_cycle) + cycle_min_index
-    phased_trajectory = np.array([hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64)
+    phased_trajectory = np.array(
+            [hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64
+            )
 
     return phased_trajectory, trajectory[phase_idx]
+
+
+def process_model_text(
+        model_text, knockouts, continuous
+        ) -> Tuple[List[str], Callable, EquationSystem]:
+    equation_system = EquationSystem.from_text(model_text)
+    equation_system = equation_system.continuous_functional_system(
+            continuous_vars=tuple([var for var in continuous if continuous[var]])
+            )
+    equation_system = equation_system.knockout_system(knockouts)
+
+    # create an update function
+    variables: List[str]
+    update_fn: Callable
+    variables, update_fn = equation_system.as_numpy()
+
+    return variables, update_fn, equation_system
