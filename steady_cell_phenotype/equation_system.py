@@ -6,7 +6,7 @@ from typing import Callable, List, Sequence, Tuple
 
 from attr import attrib, attrs
 
-from poly import *
+from steady_cell_phenotype.poly import *
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
@@ -158,7 +158,7 @@ def translate_to_expression(
                 # return BinaryOperation('PLUS', argument_one, argument_two)
             else:
                 assert formula[additive_index][0] == "MINUS"
-                return argument_one - argument_two # TODO: THIS IS WRONG, BUT FIXED ELSEWHERE
+                return argument_one - argument_two  # TODO: THIS IS WRONG, BUT FIXED ELSEWHERE
                 # return BinaryOperation('MINUS', argument_one, argument_two)
         except ParseError:
             pass
@@ -659,7 +659,7 @@ class EquationSystem(object):
         if len(line.splitlines()) != 1:
             raise ParseError("This function does not handle multi-line equations.")
 
-        line = line.replace('-', '+(-1)*') # parsing aide
+        line = line.replace('-', '+(-1)*')  # parsing aide
 
         tokenized_list = tokenize(line)
 

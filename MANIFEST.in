@@ -1,0 +1,5 @@
+include README.md
+include steady_cell_phenotype/*.h
+include steady_cell_phenotype/*.c
+include steady_cell_phenotype/find_steady_states.m2-template
+recursive-include steady_cell_phenotype *.html *.png *.jpg *.svg *.ico *.css
