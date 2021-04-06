@@ -4,7 +4,7 @@ import itertools
 import pathlib
 import re
 import string
-from typing import Dict, Iterator, List, Union
+from typing import Dict, Iterator, List, Tuple, Union
 
 from attr import attrib, attrs
 from flask import render_template
@@ -290,3 +290,51 @@ def batcher(state_gen: Iterator[np.ndarray],
     except StopIteration:
         # noinspection PyUnboundLocalVariable
         yield batch[:idx, :]
+
+
+def get_trajectory(init_state, update_fn) \
+        -> Tuple[np.ndarray, HashableNdArray]:
+    """
+    evolve an initial state until it reaches a limit cycle
+
+    Parameters
+    ----------
+    init_state
+    update_fn
+
+    Returns
+    -------
+    trajectory, phase-point pair
+    """
+    state = init_state
+    trajectory = list()
+    trajectory_set = set()  # set lookup should be faster
+
+    t_state = HashableNdArray(state)  # apparently, conversion from ndarray to tuple is _slow_
+    while t_state not in trajectory_set:
+        trajectory.append(t_state)
+        trajectory_set.add(t_state)
+        state = update_fn(state)
+        t_state = HashableNdArray(state)
+
+    # separate trajectory into in-bound and limit-cycle parts
+    repeated_state = HashableNdArray(state)
+    repeated_state_index = trajectory.index(repeated_state)
+    limit_cycle = trajectory[repeated_state_index:]
+
+    # find state in limit cycle with smallest hash (i.e. smallest lexicographic
+    # ordering if there is no integer overflow)
+    # this is our phase fixing point
+    cycle_min_index: int = 0
+    cycle_min: int = hash(limit_cycle[0])
+    for idx in range(1, len(limit_cycle)):
+        nxt_hash: int = hash(limit_cycle[idx])
+        if nxt_hash < cycle_min:
+            cycle_min_index = idx
+            cycle_min = nxt_hash
+
+    # get trajectory with phase
+    phase_idx: int = len(trajectory) - len(limit_cycle) + cycle_min_index
+    phased_trajectory = np.array([hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64)
+
+    return phased_trajectory, trajectory[phase_idx]

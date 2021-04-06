@@ -12,59 +12,11 @@ import numba
 import numpy as np
 import pathos
 
-from steady_cell_phenotype._util import batcher, BinCounter, complete_search_generator, HashableNdArray, \
+from steady_cell_phenotype._util import batcher, BinCounter, complete_search_generator, get_trajectory, HashableNdArray, \
     random_search_generator
 from steady_cell_phenotype.equation_system import EquationSystem
 
 matplotlib.use('agg')
-
-
-def get_trajectory(init_state, update_fn) \
-        -> Tuple[np.ndarray, HashableNdArray]:
-    """
-    evolve an initial state until it reaches a limit cycle
-
-    Parameters
-    ----------
-    init_state
-    update_fn
-
-    Returns
-    -------
-    trajectory, phase-point pair
-    """
-    state = init_state
-    trajectory = list()
-    trajectory_set = set()  # set lookup should be faster
-
-    t_state = HashableNdArray(state)  # apparently, conversion from ndarray to tuple is _slow_
-    while t_state not in trajectory_set:
-        trajectory.append(t_state)
-        trajectory_set.add(t_state)
-        state = update_fn(state)
-        t_state = HashableNdArray(state)
-
-    # separate trajectory into in-bound and limit-cycle parts
-    repeated_state = HashableNdArray(state)
-    repeated_state_index = trajectory.index(repeated_state)
-    limit_cycle = trajectory[repeated_state_index:]
-
-    # find state in limit cycle with smallest hash (i.e. smallest lexicographic
-    # ordering if there is no integer overflow)
-    # this is our phase fixing point
-    cycle_min_index: int = 0
-    cycle_min: int = hash(limit_cycle[0])
-    for idx in range(1, len(limit_cycle)):
-        nxt_hash: int = hash(limit_cycle[idx])
-        if nxt_hash < cycle_min:
-            cycle_min_index = idx
-            cycle_min = nxt_hash
-
-    # get trajectory with phase
-    phase_idx: int = len(trajectory) - len(limit_cycle) + cycle_min_index
-    phased_trajectory = np.array([hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64)
-
-    return phased_trajectory, trajectory[phase_idx]
 
 
 class TrajectoryStatistics(NamedTuple):
@@ -73,19 +25,24 @@ class TrajectoryStatistics(NamedTuple):
     means: Dict[HashableNdArray, np.ndarray]
     variances: Dict[HashableNdArray, np.ndarray]
 
+    @classmethod
+    def make(cls, num_variables: int):
+        return TrajectoryStatistics(trajectory_length_counts=defaultdict(lambda: BinCounter()),
+                                    data_counts=defaultdict(lambda: np.zeros(shape=0, dtype=int)),
+                                    means=defaultdict(lambda: np.zeros(shape=(0, num_variables))),
+                                    variances=defaultdict(lambda: np.zeros(shape=(0, num_variables))))
+
 
 def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
     num_samples = batch.shape[0]
     num_variables = batch.shape[1]
 
-    trajectory_length_counts: Dict[HashableNdArray, BinCounter] = \
-        defaultdict(lambda: BinCounter())
-    data_counts: Dict[HashableNdArray, np.ndarray] = \
-        defaultdict(lambda: np.zeros(shape=0, dtype=int))
-    means: Dict[HashableNdArray, np.ndarray] = \
-        defaultdict(lambda: np.zeros(shape=(0, num_variables)))
-    scaled_variances: Dict[HashableNdArray, np.ndarray] = \
-        defaultdict(lambda: np.zeros(shape=(0, num_variables)))
+    trajectory_statistics = TrajectoryStatistics.make(num_variables)
+    # unpack
+    trajectory_length_counts = trajectory_statistics.trajectory_length_counts
+    data_counts = trajectory_statistics.data_counts
+    means = trajectory_statistics.means
+    scaled_variances = trajectory_statistics.variances
 
     for batch_idx in range(num_samples):
         trajectory, phase_state = get_trajectory(batch[batch_idx, :], update_fn)
@@ -96,8 +53,8 @@ def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
         mean = means[phase_state]
         scaled_variance = scaled_variances[phase_state]
 
-        old_len = data_count.shape[0]
-        trajectory_len = trajectory.shape[0]
+        old_len: int = data_count.shape[0]
+        trajectory_len: int = trajectory.shape[0]
 
         if trajectory_len == 0:
             continue
@@ -105,17 +62,17 @@ def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
         # resize, if necessary
         if old_len < trajectory_len:
             # extend data_count
-            new_data_count = np.zeros(shape=trajectory_len, dtype=int)
+            new_data_count: np.ndarray = np.zeros(shape=trajectory_len, dtype=int)
             new_data_count[:old_len] = data_count
-            data_count = new_data_count
+            data_count: np.ndarray = new_data_count
             data_counts[phase_state] = new_data_count
             # extend means
-            new_mean = np.zeros(shape=(trajectory_len, num_variables))
+            new_mean: np.ndarray = np.zeros(shape=(trajectory_len, num_variables))
             new_mean[:old_len, :] = mean
             mean = new_mean
             means[phase_state] = new_mean
             # extend scaled variance
-            new_scaled_variance = np.zeros(shape=(trajectory_len, num_variables))
+            new_scaled_variance: np.ndarray = np.zeros(shape=(trajectory_len, num_variables))
             new_scaled_variance[:old_len] = scaled_variance
             scaled_variance = new_scaled_variance
             scaled_variances[phase_state] = new_scaled_variance
@@ -131,6 +88,7 @@ def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
         scaled_variance[:trajectory_len] += \
             (reversed_trajectory - old_mean) * (reversed_trajectory - mean[:trajectory_len])
 
+    # need to create a new tuple, as means and scaled variances can get clobbered.
     return TrajectoryStatistics(trajectory_length_counts,
                                 data_counts,
                                 means,
