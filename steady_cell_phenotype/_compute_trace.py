@@ -1,17 +1,16 @@
-from math import ceil
+import json
 import os
 import shutil
 import subprocess
 import tempfile
-import json
 
 from flask import make_response, Markup, Response
 import matplotlib
 import matplotlib.pyplot as plt
 import networkx as nx
 
-from equation_system import EquationSystem
-from ._util import *
+from steady_cell_phenotype._util import *
+from steady_cell_phenotype.equation_system import EquationSystem
 
 matplotlib.use('agg')
 
@@ -36,7 +35,7 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, e
                 init_state_params += [key, str(value)]
 
         convert_to_c_process = \
-            subprocess.run([os.getcwd() + '/convert.py', '-graph',
+            subprocess.run([get_resource_path('scp_converter.py'), '-graph',
                             '--count', '1',
                             '-i', tmp_dir_name + '/model.txt',
                             '-o', tmp_dir_name + '/model.c'] + init_state_params + continuity_params,
@@ -83,7 +82,7 @@ def run_model_with_init_val(init_state, knockout_model, variables, continuous, e
                                          decode_int(edge['source'], num_variables))),
                       'target': dict(zip(equation_system.target_variables(),
                                          decode_int(edge['target'], num_variables))),
-                      'step': int(edge['step'])}
+                      'step':   int(edge['step'])}
                      for edge in edge_list]
         edge_list = sorted(edge_list, key=lambda edge: edge['step'])
     return edge_list

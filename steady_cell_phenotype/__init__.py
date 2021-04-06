@@ -2,7 +2,7 @@
 #
 # A tool to analyze ternary networks
 #
-# Copyright Adam C. Knapp 2019-2020
+# Copyright Adam C. Knapp 2019-2021
 # Funded by American University Mellon Grant
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
@@ -20,11 +20,11 @@
 
 import tempfile
 
-from flask import Flask, make_response, request, Response, session
+from flask import Flask, make_response, render_template, request, Response, session
 import matplotlib
 from werkzeug.utils import secure_filename
 
-from ._util import *
+from steady_cell_phenotype._util import error_report, get_model_variables
 
 matplotlib.use('agg')
 

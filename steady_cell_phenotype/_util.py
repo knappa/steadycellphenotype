@@ -1,5 +1,7 @@
 import html
+import importlib.resources
 import itertools
+import pathlib
 import re
 import string
 from typing import Dict, Iterator, List, Union
@@ -10,6 +12,41 @@ import numba
 import numpy as np
 
 MAX_SUPPORTED_VARIABLE_STATES = 6
+
+
+def get_resource_path(filename: str) -> pathlib.Path:
+    """
+        Obtain the location of scp's data files regardless of package location.
+
+        Parameters
+        ----------
+        filename: str
+            File to obtain
+        Returns
+        -------
+        File's contents as a string
+        """
+    # See: https://docs.python.org/3.7/library/importlib.html#module-importlib.resources
+    with importlib.resources.path('steady_cell_phenotype', filename) as path:
+        return path
+
+
+def get_text_resource(filename: str) -> str:
+    """
+    Obtain the contents of scp's data files regardless of package location.
+
+    Parameters
+    ----------
+    filename: str
+        File to obtain
+    Returns
+    -------
+    File's contents as a string
+    """
+    # See: https://docs.python.org/3.7/library/importlib.html#module-importlib.resources
+    with importlib.resources.open_text('steady_cell_phenotype', filename) as file_handle:
+        data = file_handle.read()
+    return data
 
 
 def html_encode(msg):
@@ -46,7 +83,7 @@ def get_model_variables(model):
         variable, rhs = line.split('=')
         variable = variable.strip()
         rhs = rhs.strip()
-        # check to see if lhs is a valid symbol. TODO: what variable names does convert.py allow?
+        # check to see if lhs is a valid symbol. TODO: what variable names does scp_converter.py allow?
         if len(variable) == 0:
             raise Exception(zero_len_var_msg.format(lineno=lineno))
         if not re.match(r'^\w+$', variable) or \
@@ -108,7 +145,7 @@ class BinCounter(object):
     """
     Utility class for streaming bincounts.
     """
-    bins: np.ndarray = attrib(init=False, default=np.zeros(0, dtype=np.int))
+    bins: np.ndarray = attrib(init=False, default=np.zeros(0, dtype=int))
     max: int = attrib(init=False, default=-1)
 
     def total(self) -> int:
@@ -118,7 +155,7 @@ class BinCounter(object):
         if isinstance(datum, int):
             if datum >= len(self.bins):
                 old_bins = self.bins
-                self.bins = np.zeros(1 + int(1.5 * datum), dtype=np.int)
+                self.bins = np.zeros(1 + int(1.5 * datum), dtype=int)
                 self.bins[:len(old_bins)] = old_bins
             self.bins[datum] += 1
             self.max = max(self.max, datum)
@@ -228,7 +265,7 @@ def random_search_generator(num_iterations,
                                 dtype=np.int64)
     count = 0
     while count < num_iterations:
-        init_states = np.random.randint(3, size=(batch_size, num_variables), dtype=np.int)
+        init_states = np.random.randint(3, size=(batch_size, num_variables), dtype=int)
         # set constant values
         init_states[:, constant_indices] = constant_val_arr
 
@@ -246,7 +283,7 @@ def batcher(state_gen: Iterator[np.ndarray],
     batch: np.ndarray
     try:
         while True:
-            batch = np.zeros(shape=(batch_size, num_variables), dtype=np.int64)
+            batch = np.zeros(shape=(batch_size, num_variables), dtype=int)
             for idx in range(batch_size):
                 batch[idx] = next(state_gen)
             yield batch

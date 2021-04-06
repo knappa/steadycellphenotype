@@ -40,15 +40,18 @@ replacing `stdy-cll-phntyp-venv` with whatever folder name you desire the virtua
 ```
 source stdy-cll-phntyp-venv/bin/activate
 ```
-You will need to install packages locally to the virtual environment.
+Now run
+```
+python3 -m pip install -e .
+```
 
 
-# `convert.py` command-line usage
+# `scp_converter.py` command-line usage
 
-Running `convery.py --help` displays information about command line options 
+Running `scp_converter.py --help` displays information about command line options 
 
 ```
-usage: convert.py [-h] [-i INPUTFILE] [-o OUTPUTFILE] [-n] [-no-polys] [-sim] [-graph] [-init-val INIT_VAL [INIT_VAL ...]] [--count COUNT] [-c]
+usage: scp_converter.py [-h] [-i INPUTFILE] [-o OUTPUTFILE] [-n] [-no-polys] [-sim] [-graph] [-init-val INIT_VAL [INIT_VAL ...]] [--count COUNT] [-c]
                   [-comit CONTINUOUS_OMIT [CONTINUOUS_OMIT ...]] [-power SELF_POWER]
 
 Converter from MAX/MIN/NOT formulae to either low-degree polynomials over F_3 or a C-language simulator

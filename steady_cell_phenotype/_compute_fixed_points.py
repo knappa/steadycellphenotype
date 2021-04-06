@@ -1,11 +1,10 @@
-import os
 import shutil
 import subprocess
 import tempfile
 
 from flask import make_response
 
-from ._util import *
+from steady_cell_phenotype._util import *
 
 
 def compute_fixed_points(knockout_model, variables, continuous):
@@ -30,7 +29,7 @@ def compute_fixed_points(knockout_model, variables, continuous):
             continuity_params = ['-c']
 
         convert_to_poly_process = \
-            subprocess.run([os.getcwd() + '/convert.py', '-n',
+            subprocess.run([get_resource_path('scp_converter.py'), '-n',
                             '-i', tmp_dir_name + '/model.txt',
                             '-o', tmp_dir_name + '/model-polys.txt'] + continuity_params,
                            capture_output=True)
@@ -40,9 +39,8 @@ def compute_fixed_points(knockout_model, variables, continuous):
                 'Error running converter!\n{}\n{}'.format(html_encode(convert_to_poly_process.stdout),
                                                           html_encode(convert_to_poly_process.stderr))))
 
-        with open(os.getcwd() + '/find_steady_states.m2-template', 'r') as template, \
-                open(tmp_dir_name + '/find_steady_states.m2', 'w') as macaulay_script:
-            template_contents = template.read()
+        template_contents = get_text_resource('find_steady_states.m2-template')
+        with open(tmp_dir_name + '/find_steady_states.m2', 'w') as macaulay_script:
             macaulay_script.write(template_contents.format(
                 polynomial_file=tmp_dir_name + '/model-polys.txt',
                 output_file=tmp_dir_name + '/results.txt'))

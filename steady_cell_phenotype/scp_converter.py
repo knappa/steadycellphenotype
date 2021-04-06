@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright Adam C. Knapp 2018-2020
+# Copyright Adam C. Knapp 2018-2021
 # License: CC-BY 4.0 https://creativecommons.org/licenses/by/4.0/
 #
 # A cross-compiler, from a 3 state dynamical system written in MAX/MIN/NOT
@@ -11,6 +11,7 @@ import os
 import sys
 
 from equation_system import *
+from steady_cell_phenotype._util import get_text_resource
 
 
 ####################################################################################################
@@ -311,15 +312,12 @@ int {function_name}({typed_param_list})
 
     if graph:
         # alternate for graph!
-        with open('gv-model-template.c', 'r') as file:
-            template = file.read()
+        template = get_text_resource('gv-model-template.c')
     elif complete_search:
-        with open('complete-search-model-template.c', 'r') as file:
-            template = file.read()
+        template = get_text_resource('complete-search-model-template.c')
     else:
         # load the "big" template
-        with open('model-template.c', 'r') as file:
-            template = file.read()
+        template = get_text_resource('model-template.c')
 
     # and use it
     program_text = template.format(param_list=param_list,

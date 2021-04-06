@@ -1,16 +1,20 @@
 from collections import defaultdict
 import functools
+import itertools
 from math import ceil
 import tempfile
-from typing import Callable, Tuple
+from typing import Callable, Dict, Iterator, List, NamedTuple, Tuple
 
-from flask import make_response, Markup
+from flask import make_response, Markup, render_template
 import matplotlib
 import matplotlib.pyplot as plt
+import numba
+import numpy as np
 import pathos
 
-from equation_system import EquationSystem
-from ._util import *
+from steady_cell_phenotype._util import batcher, BinCounter, complete_search_generator, HashableNdArray, \
+    random_search_generator
+from steady_cell_phenotype.equation_system import EquationSystem
 
 matplotlib.use('agg')
 
@@ -63,18 +67,21 @@ def get_trajectory(init_state, update_fn) \
     return phased_trajectory, trajectory[phase_idx]
 
 
-def batch_trajectory_process(batch, update_fn) \
-        -> Tuple[Dict[HashableNdArray, BinCounter],
-                 Dict[HashableNdArray, np.ndarray],
-                 Dict[HashableNdArray, np.ndarray],
-                 Dict[HashableNdArray, np.ndarray]]:
+class TrajectoryStatistics(NamedTuple):
+    trajectory_length_counts: Dict[HashableNdArray, BinCounter]
+    data_counts: Dict[HashableNdArray, np.ndarray]
+    means: Dict[HashableNdArray, np.ndarray]
+    variances: Dict[HashableNdArray, np.ndarray]
+
+
+def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
     num_samples = batch.shape[0]
     num_variables = batch.shape[1]
 
     trajectory_length_counts: Dict[HashableNdArray, BinCounter] = \
         defaultdict(lambda: BinCounter())
     data_counts: Dict[HashableNdArray, np.ndarray] = \
-        defaultdict(lambda: np.zeros(shape=0, dtype=np.int))
+        defaultdict(lambda: np.zeros(shape=0, dtype=int))
     means: Dict[HashableNdArray, np.ndarray] = \
         defaultdict(lambda: np.zeros(shape=(0, num_variables)))
     scaled_variances: Dict[HashableNdArray, np.ndarray] = \
@@ -98,7 +105,7 @@ def batch_trajectory_process(batch, update_fn) \
         # resize, if necessary
         if old_len < trajectory_len:
             # extend data_count
-            new_data_count = np.zeros(shape=trajectory_len, dtype=np.int)
+            new_data_count = np.zeros(shape=trajectory_len, dtype=int)
             new_data_count[:old_len] = data_count
             data_count = new_data_count
             data_counts[phase_state] = new_data_count
@@ -124,21 +131,13 @@ def batch_trajectory_process(batch, update_fn) \
         scaled_variance[:trajectory_len] += \
             (reversed_trajectory - old_mean) * (reversed_trajectory - mean[:trajectory_len])
 
-    return trajectory_length_counts, data_counts, means, scaled_variances
+    return TrajectoryStatistics(trajectory_length_counts,
+                                data_counts,
+                                means,
+                                scaled_variances)
 
 
-def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
-                              Dict[HashableNdArray, np.ndarray],
-                              Dict[HashableNdArray, np.ndarray],
-                              Dict[HashableNdArray, np.ndarray]],
-            new_stats: Tuple[Dict[HashableNdArray, BinCounter],
-                             Dict[HashableNdArray, np.ndarray],
-                             Dict[HashableNdArray, np.ndarray],
-                             Dict[HashableNdArray, np.ndarray]]) \
-        -> Tuple[Dict[HashableNdArray, BinCounter],
-                 Dict[HashableNdArray, np.ndarray],
-                 Dict[HashableNdArray, np.ndarray],
-                 Dict[HashableNdArray, np.ndarray]]:
+def reducer(init_stats: TrajectoryStatistics, new_stats: TrajectoryStatistics) -> TrajectoryStatistics:
     # unpack
     trajectory_length_counts: Dict[HashableNdArray, BinCounter]
     data_counts: Dict[HashableNdArray, np.ndarray]
@@ -170,7 +169,7 @@ def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
             # data counts
             old_data_count: np.ndarray = data_counts[phase_point]
             next_data_count: np.ndarray = next_data_counts[phase_point]
-            new_data_counts = np.zeros(shape=new_max_len, dtype=np.int)
+            new_data_counts = np.zeros(shape=new_max_len, dtype=int)
             new_data_counts[:old_data_count.shape[0]] = old_data_count
             new_data_counts[:next_data_count.shape[0]] += next_data_count
 
@@ -179,7 +178,7 @@ def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
             # means
             old_mean: np.ndarray = means[phase_point]
             next_mean: np.ndarray = next_means[phase_point]
-            new_mean: np.ndarray = np.zeros(shape=(new_max_len, num_variables), dtype=np.float)
+            new_mean: np.ndarray = np.zeros(shape=(new_max_len, num_variables), dtype=np.float64)
             max_overlap = min(old_mean.shape[0], next_mean.shape[0])
             # weighted average on the overlap, copy over on the tail
             new_mean[:max_overlap] = \
@@ -196,7 +195,7 @@ def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
             # scaled variances
             old_variance: np.ndarray = variances[phase_point]
             next_scaled_variance: np.ndarray = next_scaled_variances[phase_point]
-            new_variance: np.ndarray = np.zeros(shape=(new_max_len, num_variables), dtype=np.float)
+            new_variance: np.ndarray = np.zeros(shape=(new_max_len, num_variables), dtype=np.float64)
             # "weighted average" on the overlap, copy over on the tail
             old_proportion = \
                 np.expand_dims(old_data_count[:max_overlap] / new_data_counts[:max_overlap], axis=-1)
@@ -217,7 +216,7 @@ def reducer(init_stats: Tuple[Dict[HashableNdArray, BinCounter],
 
             variances[phase_point] = new_variance
 
-    return trajectory_length_counts, data_counts, means, variances
+    return TrajectoryStatistics(trajectory_length_counts, data_counts, means, variances)
 
 
 def compute_cycles(model_text,
@@ -238,7 +237,7 @@ def compute_cycles(model_text,
     variables, update_fn = equation_system.as_numpy()
     update_fn = numba.jit(update_fn)
     # warm up the jitter
-    update_fn(np.zeros(len(variables), dtype=np.int))
+    update_fn(np.zeros(len(variables), dtype=np.int64))
 
     # associate variable names with their index in vectors
     variable_idx: Dict[str, int] = dict(zip(variables, range(len(variables))))
@@ -276,7 +275,7 @@ def compute_cycles(model_text,
                              pool.uimap(batch_trajectory_process,
                                         batch_generator,
                                         itertools.repeat(update_fn)),
-                             (trajectory_length_counts, data_counts, means, variances))
+                             TrajectoryStatistics(trajectory_length_counts, data_counts, means, variances))
 
     phase_points = trajectory_length_counts.keys()
 
@@ -395,14 +394,14 @@ def compute_cycles(model_text,
     def get_count(cyc):
         return trajectory_length_counts[get_key(cyc)].total()
 
-    cycles = [{'states'                : cycle,
-               'len'                   : len(cycle),
-               'count'                 : get_count(cycle),
-               'percent'               : 100 * get_count(cycle) / num_iterations,
-               'len-dist-image'        : length_distribution_images[get_key(cycle)]
-               if get_key(cycle) in length_distribution_images else "",
+    cycles = [{'states':                 cycle,
+               'len':                    len(cycle),
+               'count':                  get_count(cycle),
+               'percent':                100 * get_count(cycle) / num_iterations,
+               'len-dist-image':         length_distribution_images[get_key(cycle)]
+                                         if get_key(cycle) in length_distribution_images else "",
                'limit-set-stats-images': limit_set_stats_images[get_key(cycle)]
-               if get_key(cycle) in limit_set_stats_images else dict(), }
+                                         if get_key(cycle) in limit_set_stats_images else dict(), }
               for cycle in cycle_list]
     # respond with the results-of-computation page
     return make_response(render_template('compute-cycles.html',
