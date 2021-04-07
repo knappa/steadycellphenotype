@@ -138,7 +138,7 @@ def compute_trace(*,
                                                        equation_system=equation_system,
                                                        check_nearby=check_nearby)
     except Exception as e:
-        payload, _ = e.args
+        payload = e.args[0]
         if type(payload) in {str, Response}:
             return payload
         else:
