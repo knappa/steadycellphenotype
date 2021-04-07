@@ -21,7 +21,6 @@ setup(
     install_requires=[
         'flask>=1.1',
         'matplotlib>=3.4',
-        'networkx>=2.5',
         'numba>=0.53',
         'pathos>=0.2.7',
         'attrs>=20.3',

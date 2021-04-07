@@ -314,7 +314,8 @@ def batcher(
         yield batch[:idx, :]
 
 
-def get_trajectory(init_state: np.ndarray, update_fn: Callable) -> Tuple[np.ndarray, HashableNdArray]:
+def get_phased_trajectory(init_state: np.ndarray,
+                          update_fn: Callable) -> Tuple[np.ndarray, HashableNdArray]:
     """
     evolve an initial state until it reaches a limit cycle
 
@@ -331,14 +332,13 @@ def get_trajectory(init_state: np.ndarray, update_fn: Callable) -> Tuple[np.ndar
     trajectory = list()
     trajectory_set = set()  # set lookup should be faster
 
-    t_state = HashableNdArray(
-            state
-            )  # apparently, conversion from ndarray to tuple is _slow_
-    while t_state not in trajectory_set:
-        trajectory.append(t_state)
-        trajectory_set.add(t_state)
+    # compute state by state until we have a repeat
+    hashable_state = HashableNdArray(state)
+    while hashable_state not in trajectory_set:
+        trajectory.append(hashable_state)
+        trajectory_set.add(hashable_state)
         state = update_fn(state)
-        t_state = HashableNdArray(state)
+        hashable_state = HashableNdArray(state)
 
     # separate trajectory into in-bound and limit-cycle parts
     repeated_state = HashableNdArray(state)
@@ -363,6 +363,42 @@ def get_trajectory(init_state: np.ndarray, update_fn: Callable) -> Tuple[np.ndar
             )
 
     return phased_trajectory, trajectory[phase_idx]
+
+
+def get_trajectory(init_state: np.ndarray,
+                   update_fn: Callable) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    evolve an initial state until it reaches a limit cycle
+
+    Parameters
+    ----------
+    init_state
+    update_fn
+
+    Returns
+    -------
+    trajectory, limit cycle
+    """
+    state = init_state
+    trajectory = list()
+    trajectory_set = set()  # set lookup should be faster
+
+    # compute state by state until we have a repeat
+    hashable_state = HashableNdArray(state)
+    while hashable_state not in trajectory_set:
+        trajectory.append(hashable_state)
+        trajectory_set.add(hashable_state)
+        state = update_fn(state)
+        hashable_state = HashableNdArray(state)
+
+    # separate trajectory into in-bound and limit-cycle parts
+    repeated_state = HashableNdArray(state)
+    repeated_state_index = trajectory.index(repeated_state)
+
+    trimmed_trajectory = np.array([hashable.array for hashable in trajectory[:repeated_state_index]])
+    limit_cycle = np.array([hashable.array for hashable in trajectory[repeated_state_index:]])
+
+    return trimmed_trajectory, limit_cycle
 
 
 def process_model_text(

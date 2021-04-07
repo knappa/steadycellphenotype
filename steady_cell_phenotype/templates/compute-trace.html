@@ -66,15 +66,15 @@ Count	{{ count }}
   <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Download tsv">
   </form>
 
-<script src="https://d3js.org/d3.v6.min.js"></script>
-<script src="https://d3js.org/d3-force.v2.min.js"></script>
+<script src="{{ url_for('static', filename='d3.v6.min.js') }}"></script>
+<script src="{{ url_for('static', filename='d3-force.v2.min.js') }}"></script>
 <script>
 
 data = {"nodes":{{ nodes|safe }},
         "links":{{ links|safe }}}
 
-const height = 320;
-const width = 640;
+const height = {{ height_px }};
+const width = {{ width_px }};
 
 const links = data.links.map(d => Object.create(d));
 const nodes = data.nodes.map(d => Object.create(d));
@@ -90,15 +90,31 @@ const svg = d3.select("#trajectory_graph")
     .append("svg")
     .attr("viewBox", [-width / 2, -height / 2, width, height])
     .attr("width", "100%")
-    .attr("style", "height: 50vh;");
+    .attr("style", "height: {{ height_percent }}vh;");
+
+// create an arrowhead "template"
+svg.append("defs")
+   .append("marker")
+   .attr('id', 'arrow')
+   .attr('viewBox', '0 0 10 10')
+   .attr('refX', 15)
+   .attr('refY', 5)
+   .attr('orient', 'auto-start-reverse')
+   .attr('markerWidth', 6)
+   .attr('markerHeight', 6)
+   .attr('xoverflow','visible')
+   .append('svg:path')
+   .attr('d', 'M 0 0 L 10 5 L 0 10 z');
 
 const link = svg.append("g")
-    .attr("stroke", "#000")
+    .attr("stroke", "#666")
     .attr("stroke-opacity", 0.9)
     .selectAll("line")
     .data(links)
     .join("line")
-    .attr("stroke-width", 1);
+    .attr("stroke-width", 1.5)
+    .attr("marker-end", "url(#arrow)");
+
 
 var drag = simulation => {
 
@@ -126,7 +142,7 @@ var drag = simulation => {
 };
 
 var color = () => {
-  const scale = d3.scaleOrdinal(d3.schemeDark2);
+  const scale = d3.scaleOrdinal(d3.schemeTableau10).domain([0,1,2]);
   return d => scale(d.group);
 }
 
@@ -137,6 +153,7 @@ const node = svg.append("g")
     .data(nodes)
     .join("circle")
     .attr("r", d => d.radius ? 5 + d.radius / 3 : 5)
+    //.attr("opacity", 0.5)
     .attr("fill", color())
     .call(drag(simulation));
 
@@ -167,9 +184,9 @@ simulation.on("tick", () => {
       .attr("cx", d => d.x)
       .attr("cy", d => d.y);
 
-  text_node
-      .attr("x", d => d.x)
-      .attr("y", d => d.y);
+  //text_node
+  //    .attr("x", d => d.x)
+  //    .attr("y", d => d.y);
 });
 
 
