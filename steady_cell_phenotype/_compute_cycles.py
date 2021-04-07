@@ -16,7 +16,7 @@ from steady_cell_phenotype._util import (
     batcher,
     BinCounter,
     complete_search_generator,
-    get_trajectory,
+    get_phased_trajectory,
     HashableNdArray,
     process_model_text,
     random_search_generator,
@@ -53,7 +53,7 @@ def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
     scaled_variances = trajectory_statistics.variances
 
     for batch_idx in range(num_samples):
-        trajectory, phase_state = get_trajectory(batch[batch_idx, :], update_fn)
+        trajectory, phase_state = get_phased_trajectory(batch[batch_idx, :], update_fn)
         trajectory_length_counts[phase_state].add(len(trajectory))
 
         # extract arrays, to reduce dict lookup again
@@ -93,8 +93,8 @@ def batch_trajectory_process(batch, update_fn) -> TrajectoryStatistics:
         # Welford's online algorithm for mean and variance calculation. See Knuth Vol 2, pg 232
         data_count[:trajectory_len] += 1
         old_mean = np.array(mean[:trajectory_len])  # copy
-        mean[:trajectory_len] += (reversed_trajectory - old_mean) / \
-                                 np.expand_dims(data_count[:trajectory_len], axis=-1)
+        mean[:trajectory_len] += \
+            (reversed_trajectory - old_mean) / np.expand_dims(data_count[:trajectory_len], axis=-1)
         scaled_variance[:trajectory_len] += (reversed_trajectory - old_mean) * \
                                             (reversed_trajectory - mean[:trajectory_len])
 

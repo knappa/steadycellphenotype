@@ -1,4 +1,6 @@
+from enum import IntEnum
 import json
+import math
 from pathlib import Path
 import tempfile
 from typing import Set
@@ -11,20 +13,45 @@ from steady_cell_phenotype._util import *
 
 matplotlib.use('agg')
 
+Edge = Dict[str, Dict]
+
 
 def get_trajectory_edge_list(*,
                              init_state: np.ndarray,
                              update_fn: Callable,
-                             target_variables: Tuple[str]) -> List[Dict[str, Dict]]:
-    phased_trajectory: np.ndarray
-    phased_trajectory, phase_point = get_trajectory(init_state=init_state, update_fn=update_fn)
+                             target_variables: Tuple[str]) -> Tuple[List[Edge],
+                                                                    Set[HashableNdArray]]:
+    trajectory: np.ndarray
+    trajectory, limit_cycle = get_trajectory(init_state=init_state, update_fn=update_fn)
 
     edge_list = [{'source': dict(zip(target_variables,
-                                     phased_trajectory[i, :])),
+                                     trajectory[i, :])),
                   'target': dict(zip(target_variables,
-                                     phased_trajectory[i + 1, :]))}
-                 for i in range(phased_trajectory.shape[0] - 1)]
-    return edge_list
+                                     trajectory[i + 1, :]))}
+                 for i in range(trajectory.shape[0] - 1)]
+    if trajectory.shape[0] > 0:
+        edge_list.append(
+                {'source': dict(zip(target_variables,
+                                    trajectory[-1, :])),
+                 'target': dict(zip(target_variables,
+                                    limit_cycle[0, :]))}
+                )
+    edge_list.extend({'source': dict(zip(target_variables,
+                                         limit_cycle[i, :])),
+                      'target': dict(zip(target_variables,
+                                         limit_cycle[i + 1, :]))}
+                     for i in range(limit_cycle.shape[0] - 1))
+    if limit_cycle.shape[0] > 0:
+        edge_list.append(
+                {'source': dict(zip(target_variables,
+                                    limit_cycle[-1, :])),
+                 'target': dict(zip(target_variables,
+                                    limit_cycle[0, :]))}
+                )
+
+    limit_cycle_set = set(HashableNdArray(limit_cycle[idx, :]) for idx in range(limit_cycle.shape[0]))
+
+    return edge_list, limit_cycle_set
 
 
 def add_nearby_states(init_states: List[np.ndarray]) -> List[np.ndarray]:
@@ -45,15 +72,17 @@ def add_nearby_states(init_states: List[np.ndarray]) -> List[np.ndarray]:
     num_vars: int = init_states[0].shape[0]
 
     # add all Hamming distance `dist` states from the initial states
-    for state in init_states:
-        for idx in range(num_vars):
-            for val in range(3):
-                if abs(state[idx] - val) <= 1:
-                    new_state = state.copy()
-                    new_state[idx] = val
-                    new_init_states.add(HashableNdArray(new_state))
+    for state, idx, val in itertools.product(init_states, range(num_vars), range(3)):
+        if abs(state[idx] - val) <= 1:
+            new_state = state.copy()
+            new_state[idx] = val
+            new_init_states.add(HashableNdArray(new_state))
 
     return [state.array for state in new_init_states]
+
+
+class ComputeTraceException(Exception):
+    pass
 
 
 def run_model_variable_initial_values(*,
@@ -61,7 +90,8 @@ def run_model_variable_initial_values(*,
                                       variables: List[str],
                                       update_fn: Callable,
                                       equation_system: EquationSystem,
-                                      check_nearby: bool) -> List:
+                                      check_nearby: bool
+                                      ) -> Tuple[List, List[np.ndarray], Set[HashableNdArray]]:
     """
     Run the model on possibly *'ed sets of initial conditions
 
@@ -98,24 +128,28 @@ def run_model_variable_initial_values(*,
     try:
         init_states: List[np.ndarray] = get_states(init_state_prototype, variable_states)
     except ValueError:
-        raise Exception(make_response(error_report(
+        raise ComputeTraceException(make_response(error_report(
                 "Error constructing initial states"
                 )))
 
     # check to see if we will be overloaded
     if len(variable_states) > MAX_SUPPORTED_VARIABLE_STATES:
-        raise Exception(make_response(error_report(
+        raise ComputeTraceException(make_response(error_report(
                 f"Web platform is limited to {MAX_SUPPORTED_VARIABLE_STATES} variable states.")))
 
     if check_nearby:
         init_states = add_nearby_states(init_states)
 
-    edge_lists = []
+    edge_lists: List[List[Edge]] = []
+    limit_points: Set[HashableNdArray] = set()
     for state in init_states:
-        edge_lists.append(get_trajectory_edge_list(init_state=state,
-                                                   update_fn=update_fn,
-                                                   target_variables=equation_system.target_variables()))
-    return edge_lists
+        edge_list, limit_cycle = get_trajectory_edge_list(init_state=state,
+                                                          update_fn=update_fn,
+                                                          target_variables=equation_system.target_variables())
+        edge_lists.append(edge_list)
+        limit_points.update(limit_cycle)
+
+    return edge_lists, init_states, limit_points
 
 
 def compute_trace(*,
@@ -132,12 +166,13 @@ def compute_trace(*,
 
     # construction of initial values can fail with an exception that contains a response
     try:
-        edge_lists = run_model_variable_initial_values(init_state_prototype=init_state,
-                                                       variables=variables,
-                                                       update_fn=update_fn,
-                                                       equation_system=equation_system,
-                                                       check_nearby=check_nearby)
-    except Exception as e:
+        edge_lists, init_states, limit_points = \
+            run_model_variable_initial_values(init_state_prototype=init_state,
+                                              variables=variables,
+                                              update_fn=update_fn,
+                                              equation_system=equation_system,
+                                              check_nearby=check_nearby)
+    except ComputeTraceException as e:
         payload = e.args[0]
         if type(payload) in {str, Response}:
             return payload
@@ -145,21 +180,48 @@ def compute_trace(*,
             # should not occur
             return make_response(error_report("Unknown error"))
 
+    ################################
+    # give numeric labels to vertices and record their type i.e. initial node, limit cycle, other
+
     def to_key(edges):
         return frozenset(edges.items())
 
-    # give numeric labels to vertices
-    labels = dict()
+    class NodeType(IntEnum):
+        Other = 0
+        InitialNode = 1
+        LimitNode = 2
+
+    labels: Dict[frozenset, int] = dict()
+    # keys: frozenset of (var, val) pairs defining a point in config space
+    # values: integer 'id's for the points of config space
+
+    node_type: Dict[int, NodeType] = dict()
+    # keys: integer 'id's for the points of config space
+    # values: type of node
+
+    init_states_as_keys = set(to_key(dict(zip(variables, state))) for state in init_states)
+    limit_points_as_keys = set(to_key(dict(zip(variables, state.array))) for state in limit_points)
+
+    def get_node_type(key) -> NodeType:
+        if key in limit_points_as_keys:
+            return NodeType.LimitNode
+        elif key in init_states_as_keys:
+            return NodeType.InitialNode
+        else:
+            return NodeType.Other
+
     count = 0
     for edge_list in edge_lists:
         for edge in edge_list:
             source = to_key(edge['source'])
             if source not in labels:
                 labels[source] = count
+                node_type[count] = get_node_type(source)
                 count += 1
             target = to_key(edge['target'])
             if target not in labels:
                 labels[target] = count
+                node_type[count] = get_node_type(target)
                 count += 1
 
     return_states = []
@@ -176,12 +238,20 @@ def compute_trace(*,
                                                                  visualize_variables=visualize_variables)
 
     # create data for the javascript
-    nodes_json = json.dumps([{'id': label} for label in labels.values()])
+    nodes_json = json.dumps([{'id': label,
+                              'group': node_type[label]} for label in labels.values()])
+    num_nodes = len(labels)
+    height_percent = math.ceil(50 + 50 / (1 - math.exp(-num_nodes / 100)))
+    width_px = 640
+    height_px = math.ceil(320 + 320 / (1 - math.exp(-num_nodes / 100)))
 
     edge_tuples = set()
     for edge_list in edge_lists:
         edge_tuples.update({(labels[to_key(edge['source'])], labels[to_key(edge['target'])])
-                            for edge in edge_list})
+                            for edge in edge_list
+                            if to_key(edge['source']) != to_key(edge['target'])})
+        # `if` blocks self loops, which the force-directed graph freaks out about
+
     edge_json = json.dumps([{'source': source, 'target': target} for (source, target) in edge_tuples])
 
     # respond with the results-of-computation page
@@ -194,6 +264,9 @@ def compute_trace(*,
                                                                map(len, edge_lists),
                                                                variable_level_plots)),
                                          nodes=nodes_json,
+                                         height_percent=height_percent,
+                                         width_px=width_px,
+                                         height_px=height_px,
                                          links=edge_json))
 
 
