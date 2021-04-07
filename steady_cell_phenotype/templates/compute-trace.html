@@ -66,8 +66,8 @@ Count	{{ count }}
   <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Download tsv">
   </form>
 
-<script src="https://d3js.org/d3.v6.min.js"></script>
-<script src="https://d3js.org/d3-force.v2.min.js"></script>
+<script src="{{ url_for('static', filename='d3.v6.min.js') }}"></script>
+<script src="{{ url_for('static', filename='d3-force.v2.min.js') }}"></script>
 <script>
 
 data = {"nodes":{{ nodes|safe }},
