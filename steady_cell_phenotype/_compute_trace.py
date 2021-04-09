@@ -9,6 +9,7 @@ from flask import make_response, Markup, Response
 import matplotlib
 import matplotlib.pyplot as plt
 
+from steady_cell_phenotype._graph_layout import graph_layout
 from steady_cell_phenotype._util import *
 
 matplotlib.use('agg')
@@ -48,6 +49,8 @@ def get_trajectory_edge_list(*,
                  'target': dict(zip(target_variables,
                                     limit_cycle[0, :]))}
                 )
+        # TODO: can this be empty? I think not, unless I've forgotten what this is.
+        #  Should throw an exception if ==0
 
     limit_cycle_set = set(HashableNdArray(limit_cycle[idx, :]) for idx in range(limit_cycle.shape[0]))
 
@@ -238,12 +241,22 @@ def compute_trace(*,
                                                                  visualize_variables=visualize_variables)
 
     # create data for the javascript
-    nodes_json = json.dumps([{'id': label,
-                              'group': node_type[label]} for label in labels.values()])
+    edge_lists_by_labels = [[{'source': labels[to_key(edge['source'])],
+                              'target': labels[to_key(edge['target'])]}
+                             for edge in edge_list]
+                            for edge_list in edge_lists]
+
     num_nodes = len(labels)
     height_percent = math.ceil(50 + 50 / (1 - math.exp(-num_nodes / 100)))
     width_px = 640
     height_px = math.ceil(320 + 320 / (1 - math.exp(-num_nodes / 100)))
+
+    initial_node_positions = graph_layout(edge_lists_by_labels, height_px, width_px)
+    nodes_json = json.dumps([{'id': str(label),
+                              'group': node_type[label],
+                              'x': float(initial_node_positions[label][0]),
+                              'y': float(initial_node_positions[label][1])} for label in labels.values()])
+
 
     edge_tuples = set()
     for edge_list in edge_lists:
@@ -252,7 +265,7 @@ def compute_trace(*,
                             if to_key(edge['source']) != to_key(edge['target'])})
         # `if` blocks self loops, which the force-directed graph freaks out about
 
-    edge_json = json.dumps([{'source': source, 'target': target} for (source, target) in edge_tuples])
+    edge_json = json.dumps([{'source': str(source), 'target': str(target)} for (source, target) in edge_tuples])
 
     # respond with the results-of-computation page
     return make_response(render_template('compute-trace.html',

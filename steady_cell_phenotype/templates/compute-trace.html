@@ -73,22 +73,25 @@ Count	{{ count }}
 data = {"nodes":{{ nodes|safe }},
         "links":{{ links|safe }}}
 
-const height = {{ height_px }};
-const width = {{ width_px }};
+var height = {{ height_px }};
+var width = {{ width_px }};
 
 const links = data.links.map(d => Object.create(d));
 const nodes = data.nodes.map(d => Object.create(d));
 
 const simulation = d3.forceSimulation(nodes)
     .force("link", d3.forceLink(links).id(d => d.id))
-    .force("center", d3.forceCenter())
+    .force("center", d3.forceCenter().strength(0.5))
     .force("charge", d3.forceManyBody())
+    .alpha(0.5)
+    .alphaDecay(0.005)
     .force("x", d3.forceX())
     .force("y", d3.forceY());
 
 const svg = d3.select("#trajectory_graph")
     .append("svg")
     .attr("viewBox", [-width / 2, -height / 2, width, height])
+    .attr('xoverflow','visible')
     .attr("width", "100%")
     .attr("style", "height: {{ height_percent }}vh;");
 
@@ -153,25 +156,11 @@ const node = svg.append("g")
     .data(nodes)
     .join("circle")
     .attr("r", d => d.radius ? 5 + d.radius / 3 : 5)
-    //.attr("opacity", 0.5)
     .attr("fill", color())
     .call(drag(simulation));
 
 node.append("title")
     .text(function(d) { return d.id });
-
-//const text_node = svg.append("g")
-//    .selectAll("text")
-//    .data(nodes)
-//    .join("text")
-//    .attr("x", d => d.x)
-//    .attr("y", d => d.y)
-//    .attr("text-anchor", "middle")
-//    .attr("alignment-baseline", "central")
-//    .attr("fill", "#FFF")
-//    .text(d => d.id)
-//    .call(drag(simulation));
-
 
 simulation.on("tick", () => {
   link
@@ -184,9 +173,10 @@ simulation.on("tick", () => {
       .attr("cx", d => d.x)
       .attr("cy", d => d.y);
 
-  //text_node
-  //    .attr("x", d => d.x)
-  //    .attr("y", d => d.y);
+  svg.attr("viewBox", [d3.min(nodes.map(d => d.x))-10,
+                       d3.min(nodes.map(d => d.y))-10,
+                       d3.max(nodes.map(d => d.x))-d3.min(nodes.map(d => d.x))+20,
+                       d3.max(nodes.map(d => d.y))-d3.min(nodes.map(d => d.y))+20,])
 });
 
 
