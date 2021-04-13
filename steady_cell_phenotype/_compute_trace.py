@@ -157,7 +157,7 @@ def run_model_variable_initial_values(*,
 
 def compute_trace(*,
                   model_text: str,
-                  knockouts: Dict[str, str],
+                  knockouts: Dict[str, int],
                   continuous: Dict[str, bool],
                   init_state: Dict[str, str],
                   visualize_variables: Dict[str, bool],
@@ -256,7 +256,6 @@ def compute_trace(*,
                               'group': node_type[label],
                               'x': float(initial_node_positions[label][0]),
                               'y': float(initial_node_positions[label][1])} for label in labels.values()])
-
 
     edge_tuples = set()
     for edge_list in edge_lists:

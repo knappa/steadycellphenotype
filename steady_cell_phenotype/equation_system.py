@@ -235,19 +235,18 @@ def translate_to_expression(
         if (
                 len(formula) < 2
                 or formula[1][0] != "OPEN_PAREN"
-                or formula[-1][0] != "CLOSE_PAREN"
-        ):
+                or formula[-1][0] != "CLOSE_PAREN"):
             raise ParseError(
-                "Parse error, must have form FUNCTION OPEN_PAREN ... CLOSE_PAREN"
-                )
+                    "Parse error, must have form FUNCTION OPEN_PAREN ... CLOSE_PAREN"
+                    )
 
         # lop off the function name and parentheses
         inner_formula = formula[2:-1]
 
         if function_name in UNIVARIATE_FUNCTIONS:
             argument = translate_to_expression(
-                inner_formula
-                )  # may throw ParseError, which we do not catch here
+                    inner_formula
+                    )  # may throw ParseError, which we do not catch here
             # we succeed!
             return Function(function_name, [argument])
         elif function_name in BIVARIATE_FUNCTIONS:
@@ -256,8 +255,8 @@ def translate_to_expression(
                 try:
                     argument_one = translate_to_expression(inner_formula[0:comma_index])
                     argument_two = translate_to_expression(
-                        inner_formula[comma_index + 1:]
-                        )
+                            inner_formula[comma_index + 1:]
+                            )
                     # if we succeed, return the function
                     return Function(function_name, [argument_one, argument_two])
                 except ParseError:
@@ -307,8 +306,8 @@ def continuity_helper(
         return control_variable, int(equation)
     else:
         return control_variable, equation.continuous_polynomial_version(
-            control_variable
-            )
+                control_variable
+                )
 
 
 def polynomial_output_parallel_helper(equation: ExpressionOrInt) -> ExpressionOrInt:
@@ -343,8 +342,8 @@ class EquationSystem(object):
             self._equation_dict = dict()
         else:
             raise RuntimeError(
-                "Must specify either an empty system, or both formula_symbol_table and equation_dict"
-                )
+                    "Must specify either an empty system, or both formula_symbol_table and equation_dict"
+                    )
 
     @staticmethod
     def from_text(lines: str) -> EquationSystem:
@@ -368,8 +367,8 @@ class EquationSystem(object):
             }
 
         return EquationSystem(
-            formula_symbol_table=formula_symbol_table, equation_dict=equation_dict
-            )
+                formula_symbol_table=formula_symbol_table, equation_dict=equation_dict
+                )
 
     def symbol_table(self):
         return set(self._formula_symbol_table).union(self._equation_dict.keys())
@@ -427,7 +426,7 @@ class EquationSystem(object):
 
         functions = [self._equation_dict[var].as_numpy_str(variables)
                      if isinstance(self._equation_dict[var], Expression)
-                     else str(np.mod(np.int(self._equation_dict[var]), 3))
+                     else str(np.mod(int(self._equation_dict[var]), 3))
                      for var in variables]
 
         function_str = "".join(["update_function = lambda state: np.array([",
@@ -465,25 +464,25 @@ class EquationSystem(object):
         if PARALLEL:
             with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
                 continuous_equations = dict(
-                    pool.starmap(
-                        continuity_helper,
-                        [
-                            (var, eqn, continuous_vars)
-                            for var, eqn in self._equation_dict.items()
-                            ],
+                        pool.starmap(
+                                continuity_helper,
+                                [
+                                    (var, eqn, continuous_vars)
+                                    for var, eqn in self._equation_dict.items()
+                                    ],
+                                )
                         )
-                    )
         else:
             continuous_equations = {
                 control_variable: continuity_helper(
-                    control_variable, equation, continuous_vars
-                    )
+                        control_variable, equation, continuous_vars
+                        )
                 for control_variable, equation in self._equation_dict.items()
                 }
         return EquationSystem(
-            formula_symbol_table=self._formula_symbol_table,
-            equation_dict=continuous_equations,
-            )
+                formula_symbol_table=self._formula_symbol_table,
+                equation_dict=continuous_equations,
+                )
 
     ################################################################################################
 
@@ -567,8 +566,8 @@ class EquationSystem(object):
             with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
                 # start mapping via eval
                 evaluator = functools.partial(
-                    evaluate_parallel_helper, mapping_dict=other._equation_dict
-                    )
+                        evaluate_parallel_helper, mapping_dict=other._equation_dict
+                        )
                 composed_dict = dict(pool.map(evaluator, tuple(self._equation_dict.items())))
         else:
             composed_dict = {
@@ -577,9 +576,9 @@ class EquationSystem(object):
                 }
 
         return EquationSystem(
-            formula_symbol_table=deepcopy(self._formula_symbol_table),
-            equation_dict=composed_dict,
-            )
+                formula_symbol_table=deepcopy(self._formula_symbol_table),
+                equation_dict=composed_dict,
+                )
 
     def self_compose(self, count: int) -> EquationSystem:
         assert count >= 0, "negative powers unsupported!"
@@ -587,11 +586,11 @@ class EquationSystem(object):
         if count == 0:
             # every variable maps to itself in the identity map.
             return EquationSystem(
-                formula_symbol_table=self._formula_symbol_table,
-                equation_dict={
-                    var: Monomial.as_var(var) for var in self._equation_dict.keys()
-                    },
-                )
+                    formula_symbol_table=self._formula_symbol_table,
+                    equation_dict={
+                        var: Monomial.as_var(var) for var in self._equation_dict.keys()
+                        },
+                    )
         elif count == 1:
             return self
         elif count % 2 == 0:
@@ -600,8 +599,8 @@ class EquationSystem(object):
         else:  # count % 2 == 1
             pseudo_square_root_system = self.self_compose(count // 2)
             return pseudo_square_root_system.compose(pseudo_square_root_system).compose(
-                self
-                )
+                    self
+                    )
 
     ################################################################################################
 
@@ -610,8 +609,8 @@ class EquationSystem(object):
             return "Empty System"
         else:
             return "\n".join(
-                [str(var) + "=" + str(eqn) for var, eqn in self._equation_dict.items()]
-                )
+                    [str(var) + "=" + str(eqn) for var, eqn in self._equation_dict.items()]
+                    )
 
     __repr__ = __str__
 
@@ -667,8 +666,7 @@ class EquationSystem(object):
         if (
                 len(tokenized_list) < 3
                 or tokenized_list[0][0] != "SYMBOL"
-                or tokenized_list[1][0] != "EQUALS"
-        ):
+                or tokenized_list[1][0] != "EQUALS"):
             raise ParseError("Formula did not begin with a symbol then equals sign!")
         target_variable = tokenized_list[0][1]
 

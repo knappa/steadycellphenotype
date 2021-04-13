@@ -18,7 +18,7 @@ MAX_SUPPORTED_VARIABLE_STATES = 6
 
 def get_resource_path(filename: str) -> pathlib.Path:
     """
-    Obtain the location of scp's data files regardless of package location.
+    Obtain the location of steady_cell_phenotype's data files regardless of package location.
 
     Parameters
     ----------
@@ -35,7 +35,7 @@ def get_resource_path(filename: str) -> pathlib.Path:
 
 def get_text_resource(filename: str) -> str:
     """
-    Obtain the contents of scp's data files regardless of package location.
+    Obtain the contents of steady_cell_phenotype's data files regardless of package location.
 
     Parameters
     ----------
@@ -72,8 +72,7 @@ def get_model_variables(model) -> Tuple[List[str], List[str]]:
     zero_len_rhs_msg = "No right hand side of equation on line {lineno}."
     invalid_var_name_msg = (
         "One line {lineno}, variable name must be alpha-numeric (plus underscore), "
-        "and begin with a letter."
-    )
+        "and begin with a letter.")
     for lineno, line in enumerate(model.splitlines(), start=1):
         # check for _one_ equals sign
         if line.count("=") != 1:
@@ -88,9 +87,8 @@ def get_model_variables(model) -> Tuple[List[str], List[str]]:
         # check to see if lhs is a valid symbol. TODO: what variable names does scp_converter.py allow?
         if len(variable) == 0:
             raise Exception(zero_len_var_msg.format(lineno=lineno))
-        if (
-                not re.match(r"^\w+$", variable) or variable[0] not in string.ascii_letters
-        ):  # TODO: 2nd test may be redundant
+        if (not re.match(r"^\w+$", variable)
+                or variable[0] not in string.ascii_letters):  # TODO: 2nd test may be redundant
             raise Exception(invalid_var_name_msg.format(lineno=lineno))
         variables.append(variable)
         # do _minimal_ checking on RHS
@@ -401,9 +399,10 @@ def get_trajectory(init_state: np.ndarray,
     return trimmed_trajectory, limit_cycle
 
 
-def process_model_text(
-        model_text, knockouts, continuous
-        ) -> Tuple[List[str], Callable, EquationSystem]:
+def process_model_text(model_text: str,
+                       knockouts: Dict[str, int],
+                       continuous: Dict[str, bool]
+                       ) -> Tuple[List[str], Callable, EquationSystem]:
     equation_system = EquationSystem.from_text(model_text)
     equation_system = equation_system.continuous_functional_system(
             continuous_vars=tuple([var for var in continuous if continuous[var]])
