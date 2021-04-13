@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
         name='steady_cell_phenotype',
-        version='0.1.1',
+        version='0.1.2',
         author="A. C. Knapp",
         author_email="adam.knapp@medicine.ufl.edu",
         long_description=long_description,
