@@ -401,9 +401,10 @@ def get_trajectory(init_state: np.ndarray,
     return trimmed_trajectory, limit_cycle
 
 
-def process_model_text(
-        model_text, knockouts, continuous
-        ) -> Tuple[List[str], Callable, EquationSystem]:
+def process_model_text(model_text: str,
+                       knockouts: Dict[str, int],
+                       continuous: Dict[str, bool]
+                       ) -> Tuple[List[str], Callable, EquationSystem]:
     equation_system = EquationSystem.from_text(model_text)
     equation_system = equation_system.continuous_functional_system(
             continuous_vars=tuple([var for var in continuous if continuous[var]])
