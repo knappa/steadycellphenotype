@@ -8,6 +8,8 @@ setup(
         version='0.1.2',
         author="A. C. Knapp",
         author_email="adam.knapp@medicine.ufl.edu",
+        description="A tool for the computation of steady states and exploration of dynamics "
+                    "in ternary intracellular biological networks.",
         long_description=long_description,
         long_description_content_type="text/markdown",
         url="https://github.com/knappa/steadycellphenotype",
