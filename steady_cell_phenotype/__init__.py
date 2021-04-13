@@ -158,8 +158,8 @@ def create_app(test_config=None):
             }
 
         # create knockout model i.e. set certain values to constants without deleting the formulae
-        knockouts: Dict[str, str] = {
-            variable.strip(): request.form["{}-KO".format(variable)]
+        knockouts: Dict[str, int] = {
+            variable.strip(): int(request.form["{}-KO".format(variable)])
             for variable in variables
             if request.form["{}-KO".format(variable)] != "None"
             }
@@ -193,7 +193,6 @@ def create_app(test_config=None):
             try:
                 num_iterations = int(request.form["num_samples"])
             except ValueError:
-                num_iterations = 0  # not going to waste any effort on garbage
                 return make_response(error_report(
                         "The request was ill-formed, please go back to the main page and try again"
                         ))
