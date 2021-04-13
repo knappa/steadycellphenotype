@@ -210,7 +210,7 @@ def reducer(init_stats: TrajectoryStatistics,
 
 def compute_cycles(*,
                    model_text: str,
-                   knockouts: Dict[str, str],
+                   knockouts: Dict[str, int],
                    continuous: Dict[str, bool],
                    num_iterations: int,
                    visualize_variables: Dict[str, bool]):
