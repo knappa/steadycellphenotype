@@ -27,7 +27,13 @@ def connected_component_layout(g: nx.DiGraph):
 
     pos = dict()
 
+    visited_set = set()
+
     def get_num_leaves(parent):
+        if parent in visited_set:
+            return 0
+        else:
+            visited_set.add(parent)
         predecessors = [predecessor
                         for predecessor in g.predecessors(parent)
                         if predecessor != parent]
@@ -45,7 +51,7 @@ def connected_component_layout(g: nx.DiGraph):
 
         angles = np.cumsum(np.array([0.0] + [get_num_leaves(predecessor) for predecessor in predecessors],
                                     dtype=np.float64))
-        angles *= (max_theta - min_theta) / angles[-1]
+        angles *= (max_theta - min_theta) / angles[-1] if angles[-1] != 0 else (max_theta - min_theta)
         angles += min_theta
         for n, predecessor in enumerate(predecessors):
             theta_n = (angles[n + 1] + angles[n]) / 2.0
@@ -60,7 +66,7 @@ def connected_component_layout(g: nx.DiGraph):
     else:
         angles = np.cumsum(np.array([0] + [get_num_leaves(point) for point in cycle],
                                     dtype=np.float64))
-        angles *= 2 * np.pi / angles[-1]
+        angles *= 2 * np.pi / angles[-1] if angles[-1] != 0 else 2 * np.pi
         for n, point in enumerate(cycle):
             theta = (angles[n + 1] + angles[n]) / 2.0
             pos[point] = 20 * np.array([np.cos(theta), np.sin(theta)])

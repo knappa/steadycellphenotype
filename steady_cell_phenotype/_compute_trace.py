@@ -247,7 +247,7 @@ def compute_trace(*,
                             for edge_list in edge_lists]
 
     num_nodes = len(labels)
-    height_percent = math.ceil(50 + 50 / (1 - math.exp(-num_nodes / 100)))
+    height_percent = min(95, math.ceil(50 + 50 / (1 - math.exp(-num_nodes / 100))))
     width_px = 640
     height_px = math.ceil(320 + 320 / (1 - math.exp(-num_nodes / 100)))
 

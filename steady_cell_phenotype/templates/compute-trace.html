@@ -173,10 +173,11 @@ simulation.on("tick", () => {
       .attr("cx", d => d.x)
       .attr("cy", d => d.y);
 
-  svg.attr("viewBox", [d3.min(nodes.map(d => d.x))-10,
-                       d3.min(nodes.map(d => d.y))-10,
-                       d3.max(nodes.map(d => d.x))-d3.min(nodes.map(d => d.x))+20,
-                       d3.max(nodes.map(d => d.y))-d3.min(nodes.map(d => d.y))+20,])
+  svg.attr("viewBox", [Math.min(-100,d3.min(nodes.map(d => d.x))-10),
+                       Math.min(-100,d3.min(nodes.map(d => d.y))-10),
+                       Math.max(200,d3.max(nodes.map(d => d.x))-d3.min(nodes.map(d => d.x))+20),
+                       Math.max(200,d3.max(nodes.map(d => d.y))-d3.min(nodes.map(d => d.y))+20),
+                       ])
 });
 
 
