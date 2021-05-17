@@ -5,6 +5,17 @@
 {% block head %}
 {{ super() }}
 <script>
+
+  function trace_nearby_on() {
+    var button = document.getElementById('trace-nearby');
+    button.disabled = false;
+  }
+
+  function trace_nearby_off() {
+    var button = document.getElementById('trace-nearby');
+    button.disabled = true;
+  }
+
   function toggle_cont(source) {
     var checkboxes = document.getElementsByClassName("continuity");
     for (var i = 0; i < checkboxes.length; i++) {
@@ -106,7 +117,7 @@
                     <div class="w3-container w3-cell w3-mobile">
                         <div class="w3-container">
                             <input type="radio" class="w3-radio w3-margin" id="cycles" name="action" value="cycles"
-                                   onclick="hide_init_column()"
+                                   onclick="hide_init_column(); trace_nearby_off()"
                                    checked>
                             <label for="cycles">Sample fixed points and cycles <select name="num_samples">
                                 <option selected value="1000">1,000</option>
@@ -121,19 +132,19 @@
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
                         <input type="radio" class="w3-radio w3-margin" id="fixed_points" name="action"
-                               onclick="hide_init_column()"
+                               onclick="hide_init_column(); trace_nearby_off()"
                                value="fixed_points">
                         <label for="fixed_points">Find all fixed points</label>
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
 			<div class="w3-container w3-mobile">
 			  <input type="radio" class="w3-radio w3-margin" id="trace" name="action"
-				 onclick="show_init_column()"
+				 onclick="show_init_column(); trace_nearby_on()"
 				 value="trace">
                           <label for="trace" >Trace state(s)</label>
 			</div>
 			<div class="w3-container w3-mobile">
-			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes">
+			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes" disabled>
 			  <label for="trace-nearby">Include nearby states</label>
 			</div>
                     </div>
