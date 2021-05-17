@@ -2,7 +2,19 @@
 
 A tool for the computation of steady states and exploration of dynamics in intracellular biological networks.
 
-## Current operation
+## Developers and Research Team
+
+Adam Knapp (Developer), Julia Chifman (PI), Luis Sordo-Vieira (Co-PI), Reinhard Laubenbacher (Co-PI)
+
+Funding by College of Arts and Sciences Mellon Fund, American University. (2019)  
+
+## Background
+
+### Ternary models
+
+### Examples
+
+## Installation and Operation
 
 The app is implemented in Python 3 with the help of a variety of packages including `flask`, `matplotlib`, `networkx`, `numba`, `pathos`, and `attrs`. Some of these may be installed by default if you have installed the standard anaconda distribution. Others need to use `pip` to install it. If the version of `python` on your system is version 3 (check using `python --version`) you can install these dependencies using
 ```
@@ -30,6 +42,11 @@ Assuming that you are in the top directory of this project. This will open up a 
 
 The flask documentation contains info on how to get the thing working for remote users.  [Flask
 documentation](https://flask.palletsprojects.com/en/1.1.x/)
+
+### Note:
+
+Instructions on obtaining Macaulay2 are [here](http://www2.macaulay2.com/Macaulay2/Downloads/). In particular, [here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can get Debian packages. 
+
 
 ## Using a virtual environment
 
@@ -83,6 +100,3 @@ optional arguments:
                         time!
 ```
 
-## Notes:
-
-Instructions on obtaining Macaulay2 are [here](http://www2.macaulay2.com/Macaulay2/Downloads/). In particular, [here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can get Debian packages. 
