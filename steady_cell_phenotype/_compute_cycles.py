@@ -1,6 +1,7 @@
 from collections import defaultdict
 import functools
 import itertools
+import math
 from math import ceil
 import tempfile
 from typing import Dict, Iterator, List, NamedTuple, Tuple
@@ -267,7 +268,7 @@ def compute_cycles(*,
                 constants_vals=constants_vals,
                 )
 
-    max_threads = max(2, pathos.multiprocessing.cpu_count() - 1)
+    max_threads = max(1, min(pathos.multiprocessing.cpu_count() - 1, math.floor(state_space_size / 1000)))
 
     batch_generator = batcher(
             state_generator, variables, batch_size=min(1000, num_iterations // max_threads)
