@@ -81,8 +81,8 @@ def tokenize(input_string: str) -> Sequence[Tuple[str, Union[str, int]]]:
         elif input_string[0] == "^":
             tokenized_list.append(("EXP", "^"))
             input_string = input_string[1:]
-        elif input_string[0:3] in function_names:
-            tokenized_list.append(("FUNCTION", input_string[0:3]))
+        elif input_string[0:3].upper() in function_names:
+            tokenized_list.append(("FUNCTION", input_string[0:3].upper()))
             input_string = input_string[3:]
         else:
             # must be a name or constant. can be of variable length, terminated by punctuation or
