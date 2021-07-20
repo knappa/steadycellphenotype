@@ -63,6 +63,11 @@ def error_report(error_string):
     """ display error reports from invalid user input """
     return render_template("error.html", error_message=error_string)
 
+def message(error_string):
+    """ display error reports from invalid user input """
+    return render_template("message.html", message=error_string)
+
+
 
 def get_model_variables(model) -> Tuple[List[str], List[str]]:
     variables: List[str] = []

@@ -13,7 +13,8 @@ def compute_fixed_points(knockout_model, variables, continuous):
     # check to make sure that we have macaulay installed
     macaulay_executable = shutil.which('M2')
     if macaulay_executable is None:
-        return make_response(error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
+        return make_response(
+                error_report("Macaulay2 was not found on the server; we cannot do as you ask."))
 
     # we are set to do the computation
     with tempfile.TemporaryDirectory() as tmp_dir_name:
@@ -24,7 +25,8 @@ def compute_fixed_points(knockout_model, variables, continuous):
         # convert the model to polynomials
         non_continuous_vars = [variable for variable in variables if not continuous[variable]]
         if len(non_continuous_vars) > 0:
-            continuity_params = ['-c', '-comit'] + [variable for variable in variables if not continuous[variable]]
+            continuity_params = ['-c', '-comit'] + [variable for variable in variables if
+                                                    not continuous[variable]]
         else:
             continuity_params = ['-c']
 
@@ -36,14 +38,15 @@ def compute_fixed_points(knockout_model, variables, continuous):
 
         if convert_to_poly_process.returncode != 0:
             return make_response(error_report(
-                'Error running converter!\n{}\n{}'.format(html_encode(convert_to_poly_process.stdout),
-                                                          html_encode(convert_to_poly_process.stderr))))
+                    'Error running converter!\n{}\n{}'.format(
+                            html_encode(convert_to_poly_process.stdout),
+                            html_encode(convert_to_poly_process.stderr))))
 
         template_contents = get_text_resource('find_steady_states.m2-template')
         with open(tmp_dir_name + '/find_steady_states.m2', 'w') as macaulay_script:
             macaulay_script.write(template_contents.format(
-                polynomial_file=tmp_dir_name + '/model-polys.txt',
-                output_file=tmp_dir_name + '/results.txt'))
+                    polynomial_file=tmp_dir_name + '/model-polys.txt',
+                    output_file=tmp_dir_name + '/results.txt'))
 
         # TODO: put a limit on the amount of time this can run
         find_steady_states_process = \
@@ -52,12 +55,19 @@ def compute_fixed_points(knockout_model, variables, continuous):
                             tmp_dir_name + '/find_steady_states.m2'],
                            capture_output=True)
         if find_steady_states_process.returncode != 0:
-            with open(tmp_dir_name + '/model-polys.txt', 'r') as poly_file:
-                return make_response(error_report(
-                    'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
-                        html_encode(find_steady_states_process.stdout),
-                        html_encode(find_steady_states_process.stderr),
-                        html_encode(poly_file.read()))))
+            # this string appears when there are no solutions. I don't think it appears
+            # otherwise.
+            if '-infinity (of class InfiniteNumber)' in str(find_steady_states_process.stderr):
+                return make_response(message(
+                        'Macaulay could not find any fixed points, '
+                        'this is likely because there aren\'t any.'))
+            else:
+                with open(tmp_dir_name + '/model-polys.txt', 'r') as poly_file:
+                    return make_response(error_report(
+                            'Error running Macaulay!\n<br>\n{}\n<br>\n{}\n<br>\n{}'.format(
+                                    html_encode(find_steady_states_process.stdout),
+                                    html_encode(find_steady_states_process.stderr),
+                                    html_encode(poly_file.read()))))
 
         def process_line(line):
             line = line.strip()
@@ -85,4 +95,5 @@ def compute_fixed_points(knockout_model, variables, continuous):
 
     # respond with the results-of-computation page
     return make_response(
-        render_template('compute-fixed-points.html', variables=variables, fixed_points=fixed_points))
+            render_template('compute-fixed-points.html', variables=variables,
+                            fixed_points=fixed_points))

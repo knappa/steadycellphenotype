@@ -1,0 +1,20 @@
+{% extends "basic_template.html" %}
+{% block title %}
+{{ super() }}
+{% endblock %}
+{% block head %}
+{{ super() }}
+{% endblock %}
+{% block content %}
+
+<h1>Message</h1>
+
+<center>
+    <div class="w3-container w3-us-blue w3-margin w3-left-align" style="width:80%">
+        {{ message|safe }} <br>
+    </div>
+</center>
+
+Hit the back button to return.
+
+{% endblock %}
