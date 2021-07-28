@@ -101,6 +101,7 @@ const simulation = d3.forceSimulation(nodes)
 
 const svg = d3.select("#trajectory_graph")
     .append("svg")
+    .attr("xmlns","http://www.w3.org/2000/svg")
     .attr("viewBox", [-width / 2, -height / 2, width, height])
     .attr('xoverflow','visible')
     .attr("width", "100%")
