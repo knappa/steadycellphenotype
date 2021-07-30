@@ -157,7 +157,7 @@ var drag = simulation => {
 };
 
 var color = () => {
-  const scale = d3.scaleOrdinal(d3.schemeTableau10).domain([0,1,2]);
+  const scale = d3.scaleOrdinal(['#1f58b4', '#ff7f0e', '#2ca02c', '#d62728']).domain([0,1,2]);
   return d => scale(d.group);
 }
 
