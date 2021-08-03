@@ -80,15 +80,15 @@ def create_app(test_config=None):
     ####################################################################################################
     # a download page
 
-    @app.route("/download-tsv/", methods=["POST"])
-    def download_tsv() -> Response:
+    @app.route("/download-csv/", methods=["POST"])
+    def download_csv() -> Response:
         try:
-            tsv = request.form["model_result"].strip()
+            csv = request.form["model_result"].strip()
             return Response(
-                    tsv + "\n",  # For parsing
-                    mimetype="text/tab-separated-values",
+                    csv + "\n",  # For parsing
+                    mimetype="text/comma-separated-values",
                     headers={
-                        "Content-disposition": "attachment; filename=model_result.tsv"
+                        "Content-disposition": "attachment; filename=model_result.csv"
                         },
                     )
         except KeyError:
