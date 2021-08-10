@@ -5,84 +5,100 @@
 {% endblock %}
 {% block content %}
 
-<h1>About the Authors</h1>
+<article>
+  <h1>About the Authors</h1>
 
-<section>
-  <div class="w3-row-padding">
-    
-    <div class="w3-quarter">
-      <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width:80%">
-	<div class="w3-container w3-center">
-	  <img src="{{ url_for('static', filename='AdamKnapp.jpg') }}" class="w3-circle" alt="Adam Knapp" style="width:80%; max-width:200px; max-height:200px">
-	  <h5>Adam Knapp</h5>
-	  <div class="w3-section">
-	      Developer<br>
-		  <small>
-	      	Division of Pulmonary, Critical Care, and Sleep Medicine<br>
-	      	Department of Medicine<br>
-	      	University of Florida<br>
-		  </small>
-	      <a href="mailto:adam.knapp@medicine.ufl.edu">Email</a>
-	  </div>
-	</div>      
-      </div>
-    </div>
-    
-    <div class="w3-quarter">
-      <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width:80%">
-	<div class="w3-container w3-center">
-	  <img src="{{ url_for('static', filename='JuliaChifman.jpg') }}" class="w3-circle" alt="Julia Chifman" style="max-width:200px; max-height:200px">
-	  <h5>Julia Chifman</h5>
-	  <div class="w3-section">
-		  PI<br>
-		  <small>
-	    	Department of Mathematics and Statistics<br>
-	    	American University<br>
-		  </small>
-	    <a href="mailto:chifman@american.edu">Email</a>
-	  </div>
-	</div>
-      </div>
-    </div>
+  <section>
+    <div class="w3-row-padding">
 
-    <div class="w3-quarter">
-      <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width:80%">
-	<div class="w3-container w3-center">
-	  <img src="{{ url_for('static', filename='LuisSV.png') }}" class="w3-circle" alt="Luis Sordo Vieira" style="width:80%; max-width:200px; max-height:200px">
-	  <h5>Luis Sordo Vieira</h5>
-	  <div class="w3-section">
-		  Co-PI<br>
-		  <small>
-	    	Division of Pulmonary, Critical Care, and Sleep Medicine<br>
-	    	Department of Medicine<br>
-	    	University of Florida<br>
-		  </small>
-	  </div>
-	</div>
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width: 80%">
+          <div class="w3-container w3-center">
+            <img src="{{ url_for('static', filename='AdamKnapp.jpg') }}"
+                 class="w3-circle"
+                 alt="Adam Knapp"
+                 width="140"
+                 height="140"
+                 style="max-width: 100%; max-height:200px; height: auto"><br>
+            <b>Adam Knapp</b>
+            <div class="w3-section">
+              Developer<br>
+              <small>
+                Division of Pulmonary, Critical Care, and Sleep Medicine<br>
+                Department of Medicine<br>
+                University of Florida<br>
+              </small>
+              <a href="mailto:adam.knapp@medicine.ufl.edu">Email</a>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    <div class="w3-quarter">
-      <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width:80%">
-	<div class="w3-container w3-center">
-	  <img src="{{ url_for('static', filename='ReinhardLaubenbacher.jpg') }}" class="w3-circle" alt="Reinhard Laubenbacher" style="max-width:200px; max-height:200px">
-	  <h5>Reinhard Laubenbacher</h5>
-	  <div class="w3-section">
-            Co-PI<br>
-		  <small>
-	    	Dean’s Professor of Systems Medicine<br>
-	    	Director, Laboratory for Systems Medicine<br>
-	    	Division of Pulmonary, Critical Care, and Sleep Medicine<br>
-	    	Department of Medicine<br>
-	    	University of Florida<br>
-		  </small>
-	  </div>
-	</div>
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width: 80%">
+          <div class="w3-container w3-center">
+            <img src="{{ url_for('static', filename='JuliaChifman.jpg') }}"
+                 class="w3-circle"
+                 alt="Julia Chifman"
+                 style="max-width: 100%; max-height:200px"><br>
+            <b>Julia Chifman</b>
+            <div class="w3-section">
+              PI<br>
+              <small>
+                Department of Mathematics and Statistics<br>
+                American University<br>
+              </small>
+              <a href="mailto:chifman@american.edu">Email</a>
+            </div>
+          </div>
+        </div>
       </div>
-    </div>
 
-    
-  </div>
-</section>
-            
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width: 80%">
+          <div class="w3-container w3-center">
+            <img src="{{ url_for('static', filename='LuisSV.png') }}"
+                 class="w3-circle"
+                 alt="Luis Sordo Vieira"
+                 style="max-width:100%; max-height:200px"><br>
+            <b>Luis Sordo Vieira</b>
+            <div class="w3-section">
+              Co-PI<br>
+              <small>
+                Division of Pulmonary, Critical Care, and Sleep Medicine<br>
+                Department of Medicine<br>
+                University of Florida<br>
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="w3-quarter">
+        <div class="w3-card-4 w3-dark-grey w3-center w3-margin w3-padding-large" style="width: 80%">
+          <div class="w3-container w3-center">
+            <img src="{{ url_for('static', filename='ReinhardLaubenbacher.jpg') }}"
+                 class="w3-circle"
+                 alt="Reinhard Laubenbacher"
+                 style="max-width:100%; max-height:200px"><br>
+            <b>Reinhard Laubenbacher</b>
+            <div class="w3-section">
+              Co-PI<br>
+              <small>
+                Dean’s Professor of Systems Medicine<br>
+                Director, Laboratory for Systems Medicine<br>
+                Division of Pulmonary, Critical Care, and Sleep Medicine<br>
+                Department of Medicine<br>
+                University of Florida<br>
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+    </div>
+  </section>
+</article>
+
 {% endblock %}
