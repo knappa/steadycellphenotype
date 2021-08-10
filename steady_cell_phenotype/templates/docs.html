@@ -7,17 +7,745 @@
 {% endblock %}
 {% block content %}
 
-<h1>Documentation</h1>
+<article>
+  <div id="content" class="w3-container w3-mobile" style="margin:auto; max-width: 1100px; text-align: justify; text-justify: inter-word;">
 
-<p>This is where the documentation would go.</p>
+    <h1>Ternary networks in SteadyCellPhenotype</h1>
+    
+    <section>
+      <p class="line_space"> Ternary models can represent biomolecular networks in a simple and
+        intuitive manner by viewing the network in terms of a collection of logical rules. One can
+        think of these models as an extension of Boolean models if simple logic is employed, but
+        ternary models can also utilize more complicated rules and expressions. Each species in
+        ternary network is represented by three states: 0, 1, and 2. Various assignments have been
+        suggested for the states. For example, one possibility is to view 0 as
+        <i>false/inactive</i>, 2 as <i>true/active</i>, and 1 as <i>unknown</i>, meaning that 1 can
+        be either true/active or false/inactive. Another possibility is to think of these numbers as
+        concentration levels of various proteins: <i>low</i> (0),
+        <i>normal</i> (1) and <i>high</i> (2). Regardless of the labeling, the interactions in
+        the network can be translated into functions over the finite field on three elements and
+        then used to perform simulations, computations of the attractors, and visualizations of
+        these attractors and trajectories.
+      </p>
+      
+      
+      <p class="line_space">
+        An example of a biological network (or a graph) is depicted in Figure 1 below.  This network
+        is part of our previously published much larger network (see
+        <cite>
+          <a href="https://doi.org/10.1371/journal.pcbi.1005352">
+            doi:10.1371/journal.pcbi.1005352
+          </a>
+        </cite>).  We have selected the <i>iron homeostasis pathway</i> to demonstrate the ideas and
+        the terminology of this section. The underlying graph of this network is also a directed
+        graph in the sense that each species is connected by an arc (edge) that has a direction,
+        e.g., there is an arrow from TfR1 (transferrin receptor 1) to LIP (labile iron pool). In
+        addition, in this network the graph is a <i>signed</i> graph, that is, each connection from
+        one species to the next is either positive (activation - a blue arc with an arrow head) or
+        negative (inhibition - an orange arc with a hammer head).  We would like to note, that edges
+        joining species do not have to be signed, but in most applications, majority of connections
+        will be positive or negative.
+      </p>
+    </section>
+    
+    <center>
+      <figure>
+        <img src="{{ url_for('static', filename='Iron_core.svg') }}"
+             style="max-width: 90%;"
+             alt="Iron Homeostatsis pathway from doi:10.1371/journal.pcbi.1005352"/>
+        <figcaption>
+          <b>Figure 1 - Iron Homeostasis Pathway.</b> A portion of the graph from our published
+          model
+          <cite>
+            <a href="https://doi.org/10.1371/journal.pcbi.1005352">
+              doi:10.1371/journal.pcbi.1005352
+            </a>
+          </cite>
+        </figcaption>
+      </figure>
+    </center>
 
-<p>We should describe
-<ol>
-    <li> the web interface</li>
-    <li> the command line tools</li>
-    <li> something else?</li>
-</ol>
-</p>
+    <section>
+      <h1>Local activation functions</h1>
+      
+      <p class="line_space">
+        The next step in model building is to define a local activation function for each node in
+        the network.  The value of each local activation function depends on its input nodes
+        (species) and their current state.  This can be accomplished in multiple ways (i) using an
+        analog to the Boolean formalism, (ii) tables and (iii) functions over finite field on three
+        elements. These are not the only possibilities. Here we describe the first possibility and
+        just mention the second (our future editions will include generation of functions from
+        tables directly).  As for the third option and others, our browser based interface <i>
+        SteadyCellPhenotype</i> is capable of reading any input function over a finite field on
+        three elements, thus allowing the user to explore any type of ternary network.
+      </p>
+      
+      <p class="line_space">
+        A local activation function for a node \(v\) is often denoted in literature by \(f_v\). If
+        the node \(v\) has multiple input nodes \( w_1, w_2, \dots, w_k \), then this function is
+        written as \( f_v(w_1, w_2, \dots, w_k)\). Using this notation and Figure 1 activation
+        function, for example, for LIP is then \(f_{LIP}(TfR1, Fpn, Ft)\). To make notations
+        simpler, <i>SteadyCellPhenotype</i> allows the user to replace the bulky notation
+        \(f_{LIP}(TfR1, Fpn, Ft)\) by simply typing \(LIP.\)
+      </p>
+      
+      <center>
+        <div class="w3-cell-row"
+             style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i> SteadyCellPhenotype</i> syntax:
+            <center>
+              <tt>
+                LIP = &lt;your function goes here&gt;
+              </tt>
+            </center>
+          </div>
+        </div>
+      </center>
+      
+      <p class="line_space">
+        Now suppose, that a node in the network only has one input (e.g., IRP1 and IRP2 in Figure 1)
+        and it is clear from the biological evidence if the regulation is positive or negative. In
+        this case, one can use simple relations as depicted by the tables below.
+      </p>
+
+      <div class="w3-row">
+        <div class="w3-container w3-half">
+          \(X \rightarrow Y \), a node \(X\) activating a node \(Y\):
+          <table class="w3-table-all w3-centered w3-bordered w3-hoverable"
+                 style="width:70%; table-layout: fixed">
+            <thead>
+              <tr class="w3-grey">
+                <th>\(X\)</th>
+                <th>\(f_Y(X)\)</th>
+              </tr>
+            </thead>
+            <tr>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>2</td>
+            </tr>
+          </table>
+        </div>
+        <div class="w3-container w3-half">
+          \(X \dashv Y \), a node \(X\) inhibiting a node \(Y\):
+          <table class="w3-table-all w3-centered w3-bordered w3-hoverable"
+                 style="width:70%; table-layout: fixed">
+            <thead>
+              <tr class="w3-grey">
+                <th>\(X\)</th>
+                <th>\(f_Y(X)\)</th>
+              </tr>
+            </thead>
+            <tr>
+              <td>0</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>0</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+      
+      <p class="line_space">
+        Local activation functions depicting these tables are then:
+      </p>
+      <div class="w3-row w3-center w3-mobile">
+        <div class="w3-container w3-half">
+          activation: \(f_Y(X) = X\),
+        </div>
+        <div class="w3-container w3-half">
+          inhibition: \(f_Y(X) = 2-X \)
+        </div>
+      </div>
+      <p class="line_space">
+        Since \(-1 \bmod 3 = 2\), then the equation for inhibition can also be written as \(f_Y(X) =
+        2+2X\). Note that the table for inhibition just reverses the values and so can be considered
+        as an analog of the Boolean NOT gate. The user may then write the local activation function
+        for inhibition in several ways, including algebraic forms as well as using the
+        included <tt>not</tt> function.
+      </p>
+      
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i> SteadyCellPhenotype</i> activation syntax:
+            <center>
+              <tt>Y = X</tt>
+            </center>
+          </div>
+        </div>
+      </center>
+
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> inhibition syntax:
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  Y = not(X) <br>
+                  Y = 2+2*X <br>
+                  Y = 2-X
+                </tt>          
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+      
+      <p class="line_space">
+        When a node has two inputs (e.g., TfR1, Fpn and Ft in Figure 1) then the local activation
+        functions may also be defined using the <tt>max</tt> or <tt>min</tt> operators (see Tables
+        below).
+      </p>
+      
+      <div class="w3-row">
+        <div class="w3-container w3-half">
+          \(f_Z(X,Y) = \max(X,Y)\):
+          <table class="w3-table-all w3-centered w3-bordered w3-hoverable"
+                 style="width:70%; table-layout: fixed">
+            <thead>
+              <tr class="w3-grey">
+                <th>\(X\)</th>
+                <th>\(Y\)</th>
+                <th>\(f_Z(X,Y)\)</th>
+              </tr>
+            </thead>
+            <tr>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>0</td>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>0</td>
+              <td>2</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>0</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>2</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>0</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>1</td>
+              <td>2</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>2</td>
+              <td>2</td>
+            </tr>
+          </table>
+        </div>
+        <div class="w3-container w3-half">
+          \(f_Z(X,Y) = \min(X,Y)\):
+          <table class="w3-table-all w3-centered w3-bordered w3-hoverable"
+                 style="width:70%; table-layout: fixed">
+            <thead>
+              <tr class="w3-grey">
+                <th>\(X\)</th>
+                <th>\(Y\)</th>
+                <th>\(f_Z(X,Y)\)</th>
+              </tr>
+            </thead>
+            <tr>
+              <td>0</td>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>0</td>
+              <td>1</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>0</td>
+              <td>2</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>1</td>
+              <td>2</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>0</td>
+              <td>0</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>1</td>
+              <td>1</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>2</td>
+              <td>2</td>    
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <p class="line_space">
+        Note that <i>SteadyCellPhenotype</i>'s <tt>max</tt> and <tt>min</tt> operators support
+        exactly two arguments. One can also combine operators, using the <tt>not</tt> operator
+        inside the <tt>max</tt> and <tt>min</tt>. For example, if X activates node Z but Y inhibits
+        node Z then a possible update rule could be \(f_Z(X,Y)=\min(X,\mathrm{not}(Y)))\).
+      </p>
+      
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> syntax (some possibilities):
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  Z = max(X,Y) <br>
+                  Z = max(X,not(Y)) <br>
+                  Z = max(not(X),not(Y)) <br>
+                  <br>
+                  Z = min(X,Y) <br>
+                  Z = min(X,not(Y)) <br>
+                  Z = min(not(X),not(Y)) <br>
+                </tt>
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+
+      <p class="line_space">
+        If nontraditional activation, inhibition, or any other modulations are required, then the
+        user may enter any combination of algebraic or max/min/not expressions
+        and <i>SteadyCellPhenotype</i> will evaluate the corresponding function modulo 3.
+      </p>
+      
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> syntax (some possibilities):
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  Y = 2*X+X^2 <br>
+                  Y = 2+X^2 <br>
+                  <br>
+                  Z = X+Y^2+2*X^2*Y^2 <br>
+                  Z = max(2+X^2, Y*(1+Y)) 
+                </tt>
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+
+      
+      <p class="line_space">
+        For nodes with more than two inputs, any composition of the <tt>max</tt>, <tt>min</tt>,
+        and <tt>not</tt> operators are possible. The <tt>not</tt> operator will always take a single
+        expression as input and the <tt>max</tt> and <tt>min</tt> operators take two comma delimited
+        arguments. Similar to the cases above, other expressions can be used as well among input
+        nodes. Internally, <tt>max</tt> and <tt>min</tt> operators are recoded as polynomials of
+        degree four when necessary for algebraic computations:
+        
+        <div class="w3-row w3-center w3-mobile">
+          <div class="w3-container w3-half">
+            \(\max(x,y) = x^2y^2+x^2y+xy^2+2xy+x+y\),
+          </div>
+          <div class="w3-container w3-half">
+            \(\min(x,y)=2x^2y^2+2x^2y+2xy^2+xy \)
+          </div>
+        </div>
+      </p>
+      
+      <p class="line_space">
+        <b> Note: </b> <i>Unlike</i> variable names, the names of the <tt>max</tt>, <tt>min</tt>
+        and <tt>not</tt> operators are case insensitive and either lower case, all caps, or a
+        combination of cases can be used to enter these functions.
+      </p>
+      
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> syntax for lower case, all caps, and a combination (some
+            possibilities):
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  max(X,Y) <br>
+                  Max(X,not(Y)) <br>
+                  mAx(not(X),noT(Y)) <br>
+                  min(X,Y) <br>
+                  MIN(X,NOT(Y))<br>
+                </tt>
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+      
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> syntax for variable names. Once a variable name is assigned
+            (e.g., <b>LIP</b>) then exactly the same expression must be used for all update
+            functions:
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  LIP = min(TfR1, min(not(Fpn),not(Ft))) <br>
+                  IRP1 = not(LIP) <br>
+                </tt>
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+      
+      <h2> Example: iron homeostasis pathway </h2>
+      <p class="line_space">
+        Using the graph in Figure 1 and rules as described in
+        <cite><a href="https://doi.org/10.1371/journal.pcbi.1005352">doi:10.1371/journal.pcbi.1005352</a></cite>
+        we can write local activation functions for this portion of the network. Note that IRP1 has
+        an adjusted rule (see discussion on pages 16-17 of the article mentioned above). Syntax and
+        the actual entry within an application (Figure 2) are shown below. Note, the user also has
+        an option to upload the file in text (.txt) format.
+      </p>
+      <center>
+        <div class="w3-cell-row" style="width: 75%">
+          <div class="w3-panel w3-mobile w3-border w3-light-grey w3-leftbar"
+               style="text-align: left">
+            <i>SteadyCellPhenotype</i> syntax:
+            <div style="text-align: center">
+              <div style="display: inline-block; text-align: left">
+                <tt>
+                  LIP = min(TfR1, min(not(Fpn),not(Ft))) <br>
+                  TfR1 = max(IRP1^2, IRP2) <br>
+                  Fpn = min(2+2*IRP1^2, not(IRP2)) <br>
+                  Ft = min(2+2*IRP1^2, not(IRP2)) <br>
+                  IRP1 = not(LIP) <br>
+                  IRP2 = not(LIP) <br>
+                </tt>
+              </div>
+            </div>
+          </div>
+        </div>
+      </center>
+      
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='model_entry.png') }}"
+               style="max-width: 90%;"
+               alt="Model entry window"/>
+          <figcaption>
+            <b>Figure 2 - Model entry window.</b> The user can enter the model directly in the
+            provided window, or choose a text file and then upload the file into the same
+            window. Once the model is entered, the user may select
+            <b>Set Model Options</b> button that will take the user to the window similar in Figure 3 below.
+          </figcaption>
+        </figure>
+      </center>
+      
+    </section>
+    
+    <section>
+      <h1> Continuity </h1>
+      <p class="line_space">
+        In Boolean networks there is a single scale of change for each node. However, in ternary
+        networks there are two possible scales: a jump \(\pm1\) or \(\pm 2\). This means that a node
+        can have a "discontinuous" change, for example from low (0) to high (2), in a single time
+        step. If the user wishes to ensure that all or some nodes change by at most one unit then
+        one can select an option <span class="w3-tag w3-round w3-us-blue">Continuous</span> for the
+        variables (see Figure 3).
+        
+        Internally, continuity is applied to each update rule as follows:
+        <ul>
+          <li>
+            the local activation function \(f_X\) is computed for the variable \(X\) and compared to
+            the current state of the variable,
+          </li>
+          <li>
+            if the current state of \(X\) is the same as \(f_X\) or differs from \(f_X\) by one unit
+            only, then the value assigned to the variable is \(f_X\), and
+          </li>
+          <li>
+            if the current state of \(X\) and \(f_X\) differs by \(\pm2\), then the value of \(X\)
+            at the next time step moves by 1 in the direction of \(f_X\).
+          </li>
+        </ul>
+      </p>
+      
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='continuity_selection.png') }}"
+               style="max-width: 90%;"
+               alt="Continuity selection interface"/>
+          <figcaption>
+            <b>Figure 3 - Continuity selection.</b> The user can select all or some variables to be
+            continuous. In this figure only <tt>TfR1</tt>, <tt>Fpn</tt>, and <tt>Ft</tt> are
+            selected. The remaining variables may undergo \(\pm2\) jumps.
+          </figcaption>
+        </figure>
+      </center>
+      
+    </section>
+    
+    <section>
+      <h1> State Space: attractors </h1>
+      <p class="line_space">
+        In the current version of <i>SteadyCellPhenotype</i>, all nodes in the network are on
+        a <i>synchronous</i> update schedule, where all values are updated simultaneously. This
+        implies that trajectories are deterministic and each state of the network will belong to the
+        basin of attraction of only one attractor: a fixed point or cyclic attractor.
+      </p>
+      
+      <p class="line_space">
+        <b>Fixed Points</b> can be computed using two different options.
+        <ul>
+          <li>
+            Selecting the radio-button <span class="w3-tag w3-round w3-us-blue">Find all fixed
+              points</span> (see Figure 3).  In this case <i>SteadyCellPhenotype</i> will compute
+              all fixed points analytically using
+            <cite><a href="http://www2.macaulay2.com/Macaulay2/">Macaulay2</a></cite>, which can be downloaded
+            <cite>
+              <a href="http://www2.macaulay2.com/Macaulay2/Downloads/">at their site</a>
+            </cite>. Note that the option to find all fixed points will only work after the user
+            installs Macaulay2. If the model has no fixed points then a <i>Message</i> with the text
+            <tt>Macaulay could not find any fixed points</tt> will be displayed.
+          </li>
+          <li>
+            Another option to find <i>some</i> of the fixed points is by selecting the
+            radio-button <span class="w3-tag w3-round w3-us-blue">Sample fixed points and
+            cycles</span>. Here the user can select from the dropdown list the number of random
+            initial states from which the trajectory will be computed.
+          </li>
+        </ul>
+        <b>Cyclic attractors</b> can be computed by selecting the radio-button <span class="w3-tag
+        w3-round w3-us-blue">Sample fixed points and cycles</span> and the number of initial random
+        states. <i>If the number of samples from the dropdown list is larger than the state space
+        (only possible for relatively small models), then a complete state space search will be
+        performed.</i>
+      </p>
+      
+      <p class="line_space">
+        When the radio-button
+        <span class="w3-tag w3-round w3-us-blue">Sample fixed points and cycles</span> is selected,
+        the length of each trajectory leading to an attractor for each random start is recorded. A
+        histogram, summarizing a distribution of the path lengths, is displayed below each attractor
+        (see Figure 4). Attractors can be saved in a comma-separated values (csv) format.  All
+        images also have a save button.
+        
+        <center>
+          <figure>
+            <img src="{{ url_for('static', filename='length_of_path.png') }}"
+                 style="max-width: 90%;"
+                 alt="attractor and path length distribution display"/>
+            <figcaption>
+              <b>Figure 4 - Path length.</b> A cyclic attractor of length 6 for the model in Figure
+              1.  Since the size of the model is small, a complete state space search was
+              performed. Numbers below the attractor (48.8% and Count 356) indicate how many states
+              out of \(3^6 = 729\) belong to the basin of this attractor.
+            </figcaption>
+          </figure>
+        </center>
+        
+      <p class="line_space">
+        Additionally, the user can select the
+        <span class="w3-tag w3-round w3-us-blue">Visualize</span> option for all or some of the
+        variables (one can see this option in Figure 3). When this option is selected
+        then <i>SteadyCellPhenotype</i> will collect additional statistics. In particular, for each
+        random starting state a trajectory (path) is recorded. The collection of all these
+        trajectories are then aligned <i>on the right</i> to ensure that they all arrive at the same
+        time at the fixed point or at a specified point on their cyclic attractor. The image in
+        Figure 5 displays the mean value and standard deviation of the variable states along these
+        trajectories. This feature is useful in demonstrating, for example, if a biological species
+        of interest (LIP) had a cyclic behavior before entering a fixed point.
+      </p>
+      
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='phased_envelope.png') }}"
+               style="max-width: 90%;"
+               alt="phased envelope of trajectories leading to an attractor"/>
+          <figcaption>
+            <b>Figure 5 - Phased Envelope.</b> These images were generated using the entire model
+            (24 nodes) from
+            <cite>
+              <a href="https://doi.org/10.1371/journal.pcbi.1005352">
+                doi:10.1371/journal.pcbi.1005352
+              </a>
+            </cite>
+          </figcaption>
+        </figure>
+      </center>
+      
+      </p>
+    </section>
+    
+    <section>
+      <h2> Tracing a Specific State </h2>
+      
+      <p class="line_space">
+        <i>SteadyCellPhenotype</i> offers an option to trace a specific state by selecting the
+        <b>Trace state(s)</b> radio button. This allows the user to investigate the
+        evolution of interesting states and visualize trajectories via a graph. Under the
+        <span class="w3-tag w3-round w3-us-blue">Initial State</span> option the user can choose
+        from a dropdown list the values <tt> 0, 1, 2, or *</tt> (see Figure 6).  The symbol asterisk
+        (*) means that all states for this particular species will be considered.  If the user would
+        like to investigate nearby states around a specific point of interest, then checking the
+        box <b>Include nearby states</b> will include the evolution of trajectories from states that
+        are Hamming distance one from the specified point, i.e., all states that differ from the
+        specified state by one unit for exactly one species.
+        
+        <i>SteadyCellPhenotype</i> will display a heatmap that records the evolution of trajectories
+        and a directed graph summarizing these paths (see Figure 7). The option to save the graph
+        and heatmap are available. The values in the heatmap will be saved in a comma-separated
+        values (cvs) format.
+      </p>
+      
+      
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='trace-state-config2.png') }}"
+               style="max-width: 90%;"
+               alt="trace states interface"/>
+          <figcaption>
+            <b>Figure 6 - Trace state(s).</b> States with varying TfR1 will be traced and nearby
+            states will be included as well. The output of the selection is shown in Figure 7 below.
+            Notice that no continuity was selected.
+          </figcaption>
+        </figure>
+      </center>
+      
+      <center>
+        <figure>
+          <div class="w3-row">
+            <div class="w3-col m6 l6">
+              <img src="{{ url_for('static', filename='trace-state-table.png') }}"
+                   style="max-width: 90%;"
+                   alt="heatmaps of attractors"/>
+            </div>
+            <div class="w3-col m6 l6">
+              <img src="{{ url_for('static', filename='small_model.svg') }}"
+                   style="max-width: 90%;"
+                   alt="evolution graph of trajectories"/>
+            </div>
+          </div>
+          <caption>
+            <b>Figure 7:</b> Heatmaps (left image - partial output) displaying the evolution of
+            trajectories from a specified state. States are numbered and correspond to circles of
+            the digraph (right image).  Attractors are depicted by green circles.
+          </caption>
+        </figure>
+      </center>
+      
+      <p class="line_space">
+        <b>Note:</b> for small models selecting asterisk (*) for all species will result in the
+        computation of the entire state space. Using this option for large models is not
+        advisable. The complete state space for our running example is displayed in Figure 8, below.
+      </p>
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='iron_core_state_space_cont.svg') }}"
+               style="max-width: 100%; max-height: 75vh"
+               alt="complete state space of iron model" />
+          <figcaption>
+            <b>Figure 8: </b> Complete state space of iron model in Figure 1. The option
+            "continuous" was selected for all species. Green circles are attractors.  This model has
+            one fixed point and two cyclic attractors of length 6.
+          </figcaption>
+        </figure>
+      </center>
+    </section>
+    
+    <section>
+      <h2> Knockout and Overexpression Experiments </h2>
+      <p class="line_space">
+        <i>SteadyCellPhenotype</i> has an option to simulate the effects of knockout (k/o) or
+        overexpression (o/e) by using an option <span class="w3-tag w3-round
+        w3-us-blue">Forcing</span> and selecting a value from the dropdown list <tt> 0, 1, or 2</tt>
+        (Figure 9).  This will set the update rule to a constant value of the selected
+        species. Attractors then can be computed as described in <i>State Space</i> section.
+      </p>
+      <center>
+        <figure>
+          <img src="{{ url_for('static', filename='fpn_oe.png') }}"
+               style="max-width: 90%;"
+               alt="overexpression interface example"/>
+          <figcaption>
+            <b>Figure 9: </b> Example of Fpn overexpression. The results are displayed below
+            indicating that high iron exporter will result in overexpression of the iron importer
+            TfR1 and iron regulatory proteins (IRP1 and IRP2), and in a decrease of the labile iron
+            pool (LIP) and iron storage protein (Ft). This agrees with our earlier findings: see
+            <cite>
+              <a href="https://doi.org/10.1016/j.jtbi.2012.01.024">
+                doi.org/10.1016/j.jtbi.2012.01.024
+              </a>
+            </cite>
+          </figcaption>
+        </figure>
+      </center>
+      <img src="{{ url_for('static', filename='fpn_oe_results.png') }}"
+           style="max-width: 90%;"
+           alt="results of overexpression interface example"/>
+    </section>
+  </div>
+</article>
+<!--- Documentation portion END --->
+
 
 
 {% endblock %}

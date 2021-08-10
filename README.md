@@ -8,11 +8,9 @@ Adam Knapp (Developer), Julia Chifman (PI), Luis Sordo-Vieira (Co-PI), Reinhard 
 
 Funding by College of Arts and Sciences Mellon Fund, American University. (2019)  
 
-## Background
+## Background on Ternary models and Examples
 
-### Ternary models
-
-### Examples
+See https://steadycellphenotype.github.io/docs.html
 
 ## Installation and Operation
 
