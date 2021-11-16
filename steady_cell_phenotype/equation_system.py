@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# noinspection PyUnresolvedReferences
 import operator
 from copy import deepcopy
 from functools import partial, reduce
@@ -393,7 +394,7 @@ def parse_mathml_to_function(
             return f
         if tag_type == "apply":
             tag_contents: List[Tag] = list(
-                filter(lambda x: type(x) == Tag, mathml_tag.contents)
+                filter(lambda x: type(x) == Tag, mathml_subtag.contents)
             )
             if len(tag_contents) <= 0:
                 raise ParseError("Empty apply")
@@ -480,7 +481,7 @@ def parse_sbml_qual_function(
     input_variables: List[str], function_terms: Tag
 ) -> Callable[..., int]:
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
-    if len(default_levels) != 0:
+    if len(default_levels) != 1:
         raise ParseError("Wrong number of defaults")
     default_level_tag: Tag = default_levels[0]
     if "qual:resultlevel" not in default_level_tag.attrs:
@@ -589,14 +590,14 @@ class EquationSystem(object):
         for species in species_list:
             if "qual:maxlevel" not in species.attrs:
                 return (
-                    f"No max level provided for {species.attrs['qual:id']}, expecting 3"
+                    f"No max level provided for {species.attrs['qual:id']}, expecting 2"
                 )
 
             try:
-                if int(species.attrs["qual:maxlevel"]) != 3:
+                if int(species.attrs["qual:maxlevel"]) != 2:
                     return (
                         f"Max level provided for {species.attrs['qual:id']}"
-                        f" is {species.attrs['qual:maxlevel']}, expecting 3"
+                        f" is {species.attrs['qual:maxlevel']}, expecting 2"
                     )
             except ValueError:
                 return (
@@ -661,12 +662,13 @@ class EquationSystem(object):
                 transition_function: Callable = parse_sbml_qual_function(
                     input_variables, function_terms[0]
                 )
-            except ParseError:
-                return "Could not parse functions"
+            except ParseError as e:
+                return "Could not parse functions " + str(e)
 
             expression: ExpressionOrInt = 0
 
-            def interpolation_monomial(input_value, input_variable):
+            def interpolation_monomial(params):
+                input_value, input_variable = params
                 return 1 - (Monomial.as_var(input_variable) - input_value) ** 2
 
             for input_values in product([0, 1, 2], repeat=len(input_variables)):
