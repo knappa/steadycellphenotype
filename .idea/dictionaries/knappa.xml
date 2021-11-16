@@ -11,6 +11,7 @@
       <w>coeff</w>
       <w>coeffs</w>
       <w>comit</w>
+      <w>defaultterm</w>
       <w>divmod</w>
       <w>dtype</w>
       <w>endblock</w>
@@ -18,14 +19,18 @@
       <w>evaled</w>
       <w>exprs</w>
       <w>fonttype</w>
+      <w>functionterm</w>
       <w>getcwd</w>
       <w>hoverable</w>
+      <w>initiallevel</w>
       <w>inputfile</w>
       <w>kotler</w>
       <w>laubenbacher</w>
       <w>lineno</w>
       <w>linoy</w>
+      <w>listoffunctionterms</w>
       <w>loopback</w>
+      <w>maxlevel</w>
       <w>moriah</w>
       <w>mult</w>
       <w>nbsp</w>
@@ -37,8 +42,10 @@
       <w>polys</w>
       <w>printf</w>
       <w>qual</w>
+      <w>qualitativespecies</w>
       <w>quickstart</w>
       <w>recurses</w>
+      <w>resultlevel</w>
       <w>sbml</w>
       <w>sordo</w>
       <w>stdev</w>
