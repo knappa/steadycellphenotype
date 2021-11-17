@@ -142,11 +142,18 @@ def translate_to_expression(
     formula: Sequence[Tuple[str, Union[str, int]]]
 ) -> ExpressionOrInt:
     """
-    recursive descent parser for formula translation
-    recurses left-to-right, building the formula on the way back up
+    Parse formula using recursive descent.
 
-    :param formula: tokenized list
-    :return: Expression
+    Recurses left-to-right, building the formula on the way back up.
+
+    Parameters
+    ----------
+    formula
+        tokenized list
+
+    Returns
+    -------
+    ExpressionOrInt
     """
     if len(formula) <= 0:
         raise ParseError("can't parse an empty formula")
@@ -162,13 +169,11 @@ def translate_to_expression(
             # we succeed!
             if formula[additive_index][0] == "PLUS":
                 return argument_one + argument_two
-                # return BinaryOperation('PLUS', argument_one, argument_two)
             else:
                 assert formula[additive_index][0] == "MINUS"
                 return (
                     argument_one - argument_two
-                )  # TODO: THIS IS WRONG, BUT FIXED ELSEWHERE
-                # return BinaryOperation('MINUS', argument_one, argument_two)
+                )  # Note: This is, in some sense, wrong, but fix fixed elsewhere
         except ParseError:
             pass
 
@@ -197,7 +202,6 @@ def translate_to_expression(
             argument_two = translate_to_expression(formula[mult_index + 1 :])
             # we succeed!
             return argument_one * argument_two
-            # return BinaryOperation('TIMES', argument_one, argument_two)
         except ParseError:
             pass
 
@@ -213,7 +217,6 @@ def translate_to_expression(
             exponent = formula[-1][1]
             # we succeed!
             return base ** exponent
-            # return BinaryOperation('EXP', base, exponent)
         except ParseError:
             pass
 
@@ -483,14 +486,16 @@ def parse_sbml_qual_function(
 ) -> Callable[..., int]:
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
     if len(default_levels) != 1:
-        raise ParseError("Wrong number of defaults")
+        raise ParseError("There should be exactly one default level!")
     default_level_tag: Tag = default_levels[0]
     if "qual:resultlevel" not in default_level_tag.attrs:
         raise ParseError("Malformed tags")
     try:
         default_level: int = int(default_level_tag.attrs["qual:resultlevel"])
     except ValueError:
-        raise ParseError("Non-integer default level")
+        raise ParseError(
+            f"Non-integer default level {default_level_tag.attrs['qual:resultlevel']}"
+        )
 
     conditional_levels: List[Tuple[int, Callable[..., bool]]] = []
     for conditional_level_tag in function_terms.findChildren("qual:functionterm"):
