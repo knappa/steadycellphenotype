@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 # noinspection PyUnresolvedReferences
+from html import escape
 import operator
 from copy import deepcopy
 from functools import partial, reduce
-from typing import Callable, List, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from attr import attrib, attrs
 from bs4 import BeautifulSoup
@@ -522,6 +523,9 @@ def parse_sbml_qual_function(
 class EquationSystem(object):
     _formula_symbol_table: List[str] = attrib()
     _equation_dict: Dict[str, ExpressionOrInt] = attrib()
+    _lines: List[Tuple[Optional[str], Optional[str]]] = attrib()
+
+    # _lines: Tuples of variable name and comment, both optional, for printing
 
     def __init__(
         self,
@@ -551,7 +555,7 @@ class EquationSystem(object):
         EquationSystem
         """
         equation_system: EquationSystem = EquationSystem()
-        for line in lines.strip().splitlines():
+        for line_number, line in enumerate(lines.strip().splitlines()):
             equation_system.parse_and_add_equation(line)
         return equation_system
 
@@ -966,7 +970,17 @@ class EquationSystem(object):
             return "Empty System"
         else:
             return "\n".join(
-                [str(var) + "=" + str(eqn) for var, eqn in self._equation_dict.items()]
+                [
+                    (
+                        str(var)
+                        + "="
+                        + str(self._equation_dict[var])
+                        + (" # " + escape(comment) if comment is not None else "")
+                    )
+                    if var is not None
+                    else ("# " + escape(comment) if comment is not None else "")
+                    for var, comment in self._lines
+                ]
             )
 
     __repr__ = __str__
@@ -1030,14 +1044,22 @@ class EquationSystem(object):
         Parameters
         ----------
         line: str
-            A line of the form 'symbol=formula'
+            A line of the form 'symbol=formula # comment' or pure comment starting with '#'
 
         Returns
         -------
         None
         """
         line = line.strip()
-        if len(line) == 0 or line[0] == "#":
+
+        comment_idx = line.index("#")
+        comment: Optional[str] = None
+        if comment_idx != -1:
+            comment = line[comment_idx + 1 :].strip()
+            line = line[:comment_idx].strip()
+
+        if len(line) == 0:
+            self._lines.append((None, comment))
             return  # empty or comment
 
         if len(line.splitlines()) != 1:
@@ -1071,5 +1093,7 @@ class EquationSystem(object):
             if symb not in self._formula_symbol_table:
                 self._formula_symbol_table.append(symb)
         self._equation_dict[target_variable] = equation
+
+        self._lines.append((target_variable, comment))
 
     ################################################################################################
