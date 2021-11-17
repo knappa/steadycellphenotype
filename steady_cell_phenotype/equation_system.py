@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 # noinspection PyUnresolvedReferences
-from html import escape
 import operator
 from copy import deepcopy
 from functools import partial, reduce
+from html import escape
 from typing import Callable, List, Optional, Sequence, Tuple
 
 from attr import attrib, attrs
