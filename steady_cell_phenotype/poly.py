@@ -149,30 +149,30 @@ class Expression(object):
 
         return Function("CONT", [control_variable, self])
 
-    ####################################################################################################
+    ################################################################################################
     #
-    # the following method converts a system of equations into one which is "continuous" in the sense
-    # that application of the system does not change the per-coordinate values by more than 1. This is
-    # accomplished by a type of curve fitting. Fortunately, the formula for this
+    # the following method converts a system of equations into one which is "continuous" in the
+    # sense that application of the system does not change the per-coordinate values by more than 1.
+    # This is accomplished by a type of curve fitting. Fortunately, the formula for this
     #
     # g(x) = sum_{c\in \F_3^n} h(c) prod_{j=0}^n (1-(x_j-c_j)**2)
     #
-    # (as seen in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24) admits a recursive
-    # formulation. That is, for a polynomial x_k = f_k(x_0,x_1,...,x_l) we can select one of the
-    # variables, say x_0 and reduce the polynomial each of 3-ways x_0=0, x_0=1, and x_0=2. This
-    # correspondingly divides the sum into those which have each of the 3 types of terms
+    # (as seen in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24) admits a
+    # recursive formulation. That is, for a polynomial x_k = f_k(x_0,x_1,...,x_l) we can select one
+    # of the variables, say x_0 and reduce the polynomial each of 3-ways x_0=0, x_0=1, and x_0=2.
+    # This correspondingly divides the sum into those which have each of the 3 types of terms
     # (1-(x_0-c_0)**2) for c_0=0, c_0=1, and c_0=2
     #
-    # fortunately, (1-(x_j-0)**2)+(1-(x_j-1)**2)+(1-(x_j-2)**2) = 1 so if the evaluations of f become
-    # constant or even simply eliminate a variable, we need no longer consider that variable.
+    # fortunately, (1-(x_j-0)**2)+(1-(x_j-1)**2)+(1-(x_j-2)**2) = 1 so if the evaluations of f
+    # become constant or even simply eliminate a variable, we need no longer consider that variable.
     #
-    # recursion proceeds by eliminating variables in this manner, multiplying by the appropriate fitting
-    # term (1-(x_j-c_j)**2) (c_j being the evaluated value of x_j) on the way up.
+    # recursion proceeds by eliminating variables in this manner, multiplying by the appropriate
+    # fitting term (1-(x_j-c_j)**2) (c_j being the evaluated value of x_j) on the way up.
     #
     # this comment is not really the place for a full proof of this method, but the proof is easily
     # obtained from the above.
     #
-    ####################################################################################################
+    ################################################################################################
 
     def continuous_polynomial_version(self, control_variable):
         if self.is_constant():
@@ -435,7 +435,8 @@ class Function(Expression):
     #                  'NOT': (1, not_sympy)}
     #
     #     if self._function_name not in functions:
-    #         raise Exception("cannot evaluate unknown function " + self._function_name + " as a sympy expression")
+    #         raise Exception("cannot evaluate unknown function " + self._function_name +
+    #                         " as a sympy expression")
     #
     #     if len(self._expression_list) != functions[self._function_name][0]:
     #         raise Exception(f"Wrong number of arguments for {self._function_name}")
@@ -453,7 +454,8 @@ class Function(Expression):
             for expr in self._expression_list
         ]
         # this one is slow
-        # continuous_str = "( (({1})>({0})) * (({0})+1) + (({1})<({0})) * (({0})-1) + (({1})==({0}))*({0}) )"
+        # continuous_str = \
+        #    "( (({1})>({0})) * (({0})+1) + (({1})<({0})) * (({0})-1) + (({1})==({0}))*({0}) )"
         continuous_str = "( {0}+np.sign(np.mod({1},3)-np.mod({0},3)) )"
         max_str = "np.maximum(np.mod({0},3),np.mod({1},3))"
         min_str = "np.minimum(np.mod({0},3),np.mod({1},3))"
@@ -516,12 +518,18 @@ class BinaryOperation(Expression):
             is_integer(self._right_expression) or self._right_expression.is_constant()
         )
 
-    def eval(self, variable_dict):
+    def eval(self, variable_dict) -> Union[Expression, int]:
         """
-        evaluate parameters, making them ints if possible
+        Evaluate parameters, making them ints if possible.
 
-        :param variable_dict: a dictionary of taking either single-term monomials or string (variable names) to ints
-        :return: evaluated expression
+        Parameters
+        ----------
+        variable_dict
+            a dictionary of taking either single-term monomials or string (variable names) to ints
+
+        Returns
+        -------
+        evaluated expression
         """
         evaled_left_expr = (
             self._left_expression
@@ -667,8 +675,10 @@ class BinaryOperation(Expression):
     #     if self.relation_name not in relations:
     #         raise Exception("Unknown binary relation: " + self.relation_name)
     #
-    #     lhs = self._left_expression if is_integer(self._left_expression) else self._left_expression.as_sympy()
-    #     rhs = self._right_expression if is_integer(self._right_expression) else self._right_expression.as_sympy()
+    #     lhs = (self._left_expression if is_integer(self._left_expression)
+    #            else self._left_expression.as_sympy())
+    #     rhs = (self._right_expression if is_integer(self._right_expression)
+    #            else self._right_expression.as_sympy())
     #
     #     return relations[self.relation_name](lhs, rhs)
 

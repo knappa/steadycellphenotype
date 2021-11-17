@@ -173,7 +173,7 @@ def translate_to_expression(
                 assert formula[additive_index][0] == "MINUS"
                 return (
                     argument_one - argument_two
-                )  # Note: This is, in some sense, wrong, but fix fixed elsewhere
+                )  # Note: This is, in some sense, wrong, but fixed elsewhere. TODO: Remove this
         except ParseError:
             pass
 
