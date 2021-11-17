@@ -29,6 +29,7 @@ from flask import (Flask, Response, make_response, render_template, request,
 from werkzeug.utils import secure_filename
 
 from steady_cell_phenotype._util import error_report, get_model_variables
+from steady_cell_phenotype.equation_system import ParseError
 
 matplotlib.use("agg")
 
@@ -115,6 +116,15 @@ def create_app(test_config=None):
                     model_file.save(filename)
                     with open(filename, "r") as file:
                         model_from_file = file.read().strip()
+                    try:
+                        from steady_cell_phenotype.equation_system import \
+                            EquationSystem
+
+                        sbml_model = EquationSystem.from_sbml_qual(model_from_file)
+                        if sbml_model is not None:
+                            model_from_file = str(sbml_model)
+                    except ParseError:
+                        pass
 
         if session.new or "model_text" not in session:
             session.permanent = True

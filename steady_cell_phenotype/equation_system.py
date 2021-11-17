@@ -500,11 +500,11 @@ def parse_sbml_qual_function(
     conditional_levels: List[Tuple[int, Callable[..., bool]]] = []
     for conditional_level_tag in function_terms.findChildren("qual:functionterm"):
         if "qual:resultlevel" not in conditional_level_tag.attrs:
-            raise ParseError
+            raise ParseError("Missing qual:resultlevel")
         try:
             level: int = int(conditional_level_tag.attrs["qual:resultlevel"])
         except ValueError:
-            raise ParseError
+            raise ParseError("Non-int qual:resultlevel")
 
         level_function: Callable[..., bool] = parse_mathml_to_function(
             input_variables, conditional_level_tag.findChild("math")
@@ -537,13 +537,19 @@ class EquationSystem(object):
         *,
         formula_symbol_table: List[str] = None,
         equation_dict: Dict[str, ExpressionOrInt] = None,
+        lines: List[Tuple[Optional[str], Optional[str]]] = None,
     ):
         if formula_symbol_table is not None and equation_dict is not None:
             self._formula_symbol_table = deepcopy(formula_symbol_table)
             self._equation_dict = deepcopy(equation_dict)
+            if lines is None:
+                self._lines = [(symbol, None) for symbol in formula_symbol_table]
+            else:
+                self._lines = deepcopy(lines)
         elif formula_symbol_table is None and equation_dict is None:
             self._formula_symbol_table = []
             self._equation_dict = dict()
+            self._lines = list()
         else:
             raise RuntimeError(
                 "Must specify either an empty system,"
@@ -694,7 +700,11 @@ class EquationSystem(object):
             if variable not in equations:
                 return f"No update function for {variable} specified!"
 
-        return EquationSystem(formula_symbol_table=symbols, equation_dict=equations)
+        lines = [(symbol, None) for symbol in symbols]
+
+        return EquationSystem(
+            formula_symbol_table=symbols, equation_dict=equations, lines=lines
+        )
 
     def as_poly_system(self) -> EquationSystem:
         formula_symbol_table = deepcopy(self._formula_symbol_table)
@@ -704,7 +714,9 @@ class EquationSystem(object):
         }
 
         return EquationSystem(
-            formula_symbol_table=formula_symbol_table, equation_dict=equation_dict
+            formula_symbol_table=formula_symbol_table,
+            equation_dict=equation_dict,
+            lines=deepcopy(self._lines),
         )
 
     def symbol_table(self):
@@ -835,6 +847,7 @@ class EquationSystem(object):
         return EquationSystem(
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
+            lines=self._lines,
         )
 
     ################################################################################################
@@ -868,6 +881,7 @@ class EquationSystem(object):
         return EquationSystem(
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
+            lines=self._lines,
         )
 
     ################################################################################################
@@ -893,7 +907,9 @@ class EquationSystem(object):
         }
 
         return EquationSystem(
-            formula_symbol_table=self._formula_symbol_table, equation_dict=equations
+            formula_symbol_table=self._formula_symbol_table,
+            equation_dict=equations,
+            lines=self._lines,
         )
 
     ################################################################################################
@@ -916,7 +932,9 @@ class EquationSystem(object):
             equation_dict[var] = int(val) % 3
 
         return EquationSystem(
-            formula_symbol_table=self._formula_symbol_table, equation_dict=equation_dict
+            formula_symbol_table=self._formula_symbol_table,
+            equation_dict=equation_dict,
+            lines=self._lines,
         )
 
     ################################################################################################
@@ -1057,7 +1075,7 @@ class EquationSystem(object):
         """
         line = line.strip()
 
-        comment_idx = line.index("#")
+        comment_idx = line.find("#")
         comment: Optional[str] = None
         if comment_idx != -1:
             comment = line[comment_idx + 1 :].strip()
