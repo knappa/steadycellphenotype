@@ -15,9 +15,11 @@ def test_parse():
     knockouts = {}  # no knockout
     continuous: Dict[str, bool] = {}  # no continuous variables
 
-    variables, update_fn, equation_system = process_model_text(model_text, knockouts, continuous)
+    variables, update_fn, equation_system = process_model_text(
+        model_text, knockouts, continuous
+    )
 
-    assert variables == ('A', 'B')
+    assert variables == ("A", "B")
 
     for a, b in itertools.product(range(3), repeat=2):
         assert np.all(update_fn([a, b]) == [b, a])
