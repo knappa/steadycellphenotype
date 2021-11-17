@@ -6,10 +6,10 @@ import re
 import string
 from typing import Callable, Dict, Iterator, List, Tuple, Union
 
-from attr import attrib, attrs
-from flask import render_template
 import numba
 import numpy as np
+from attr import attrib, attrs
+from flask import render_template
 
 from steady_cell_phenotype.equation_system import EquationSystem
 
@@ -47,8 +47,8 @@ def get_text_resource(filename: str) -> str:
     """
     # See: https://docs.python.org/3.7/library/importlib.html#module-importlib.resources
     with importlib.resources.open_text(
-            "steady_cell_phenotype", filename
-            ) as file_handle:
+        "steady_cell_phenotype", filename
+    ) as file_handle:
         data = file_handle.read()
     return data
 
@@ -60,40 +60,44 @@ def html_encode(msg):
 
 
 def error_report(error_string):
-    """ display error reports from invalid user input """
+    """display error reports from invalid user input"""
     return render_template("error.html", error_message=error_string)
 
-def message(error_string):
-    """ display error reports from invalid user input """
-    return render_template("message.html", message=error_string)
 
+def message(error_string):
+    """display error reports from invalid user input"""
+    return render_template("message.html", message=error_string)
 
 
 def get_model_variables(model) -> Tuple[List[str], List[str]]:
     variables: List[str] = []
     right_sides: List[str] = []
-    too_many_eq_msg = "Count of ='s on line {lineno} was {eq_count} but each line must have a single = sign."
+    too_many_eq_msg = (
+        "Count of ='s on line {lineno} was {eq_count} but each"
+        " line must have a single = sign."
+    )
     zero_len_var_msg = "No variable found before = on line {lineno}."
     zero_len_rhs_msg = "No right hand side of equation on line {lineno}."
     invalid_var_name_msg = (
         "One line {lineno}, variable name must be alpha-numeric (plus underscore), "
-        "and begin with a letter.")
+        "and begin with a letter."
+    )
     for lineno, line in enumerate(model.splitlines(), start=1):
         # check for _one_ equals sign
         if line.count("=") != 1:
             raise Exception(
-                    too_many_eq_msg.format(lineno=lineno, eq_count=line.count("="))
-                    )
+                too_many_eq_msg.format(lineno=lineno, eq_count=line.count("="))
+            )
         variable: str
         rhs: str
         variable, rhs = line.split("=")
         variable = variable.strip()
         rhs = rhs.strip()
-        # check to see if lhs is a valid symbol. TODO: what variable names does scp_converter.py allow?
+        # check to see if lhs is a valid symbol.
+        # TODO: what variable names does scp_converter.py allow?
         if len(variable) == 0:
             raise Exception(zero_len_var_msg.format(lineno=lineno))
-        if (not re.match(r"^\w+$", variable)
-                or variable[0] not in string.ascii_letters):  # TODO: 2nd test may be redundant
+        if not re.match(r"^\w+$", variable) or variable[0] not in string.ascii_letters:
             raise Exception(invalid_var_name_msg.format(lineno=lineno))
         variables.append(variable)
         # do _minimal_ checking on RHS
@@ -104,7 +108,7 @@ def get_model_variables(model) -> Tuple[List[str], List[str]]:
 
 
 def decode_int(coded_value, num_variables):
-    """ Decode long-form int into trinary """
+    """Decode long-form int into trinary"""
     if isinstance(coded_value, str):
         if coded_value[:2] == "0x":
             coded_value = int(coded_value, 16)
@@ -226,8 +230,8 @@ class HashableNdArray(object):
 
 
 def complete_search_generator(
-        variables: List[str], constants_vals: Dict[str, int]
-        ) -> Iterator[np.ndarray]:
+    variables: List[str], constants_vals: Dict[str, int]
+) -> Iterator[np.ndarray]:
     """
     Generator which yields all possible states, with constant variables fixed
 
@@ -239,28 +243,28 @@ def complete_search_generator(
     num_non_constant_vars = len(variables) - len(constants)
     non_constant_vars = list(set(variables) - set(constants))
     for var_dict in map(
-            lambda tup: dict(zip(tup[0], tup[1])),
-            zip(
-                    itertools.repeat(non_constant_vars),
-                    itertools.product(range(3), repeat=num_non_constant_vars),
-                    ),
-            ):
+        lambda tup: dict(zip(tup[0], tup[1])),
+        zip(
+            itertools.repeat(non_constant_vars),
+            itertools.product(range(3), repeat=num_non_constant_vars),
+        ),
+    ):
         state = np.fromiter(
-                (
-                    var_dict[var] if var in var_dict else constants_vals[var]
-                    for var in variables
-                    ),
-                dtype=np.int64,
-                )
+            (
+                var_dict[var] if var in var_dict else constants_vals[var]
+                for var in variables
+            ),
+            dtype=np.int64,
+        )
         yield state
 
 
 def random_search_generator(
-        num_iterations,
-        variables: List[str],
-        constants_vals: Dict[str, int],
-        batch_size=2000,
-        ) -> Iterator[np.ndarray]:
+    num_iterations,
+    variables: List[str],
+    constants_vals: Dict[str, int],
+    batch_size=2000,
+) -> Iterator[np.ndarray]:
     """
     Generates `num_iterations` random states, with constant variables fixed.
 
@@ -281,13 +285,13 @@ def random_search_generator(
     """
     num_variables = len(variables)
     constant_indices = np.array(
-            [idx for idx, var in enumerate(variables) if var in constants_vals],
-            dtype=np.int64,
-            )
+        [idx for idx, var in enumerate(variables) if var in constants_vals],
+        dtype=np.int64,
+    )
     constant_val_arr = np.array(
-            [constants_vals[var] for var in variables if var in constants_vals],
-            dtype=np.int64,
-            )
+        [constants_vals[var] for var in variables if var in constants_vals],
+        dtype=np.int64,
+    )
     count = 0
     while count < num_iterations:
         init_states = np.random.randint(3, size=(batch_size, num_variables), dtype=int)
@@ -302,8 +306,8 @@ def random_search_generator(
 
 
 def batcher(
-        state_gen: Iterator[np.ndarray], variables, batch_size
-        ) -> Iterator[np.ndarray]:
+    state_gen: Iterator[np.ndarray], variables, batch_size
+) -> Iterator[np.ndarray]:
     num_variables = len(variables)
     batch: np.ndarray
     try:
@@ -317,8 +321,9 @@ def batcher(
         yield batch[:idx, :]
 
 
-def get_phased_trajectory(init_state: np.ndarray,
-                          update_fn: Callable) -> Tuple[np.ndarray, HashableNdArray]:
+def get_phased_trajectory(
+    init_state: np.ndarray, update_fn: Callable
+) -> Tuple[np.ndarray, HashableNdArray]:
     """
     evolve an initial state until it reaches a limit cycle
 
@@ -362,14 +367,15 @@ def get_phased_trajectory(init_state: np.ndarray,
     # get trajectory with phase
     phase_idx: int = len(trajectory) - len(limit_cycle) + cycle_min_index
     phased_trajectory = np.array(
-            [hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64
-            )
+        [hashable.array for hashable in trajectory[:phase_idx]], dtype=np.int64
+    )
 
     return phased_trajectory, trajectory[phase_idx]
 
 
-def get_trajectory(init_state: np.ndarray,
-                   update_fn: Callable) -> Tuple[np.ndarray, np.ndarray]:
+def get_trajectory(
+    init_state: np.ndarray, update_fn: Callable
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     evolve an initial state until it reaches a limit cycle
 
@@ -398,20 +404,23 @@ def get_trajectory(init_state: np.ndarray,
     repeated_state = HashableNdArray(state)
     repeated_state_index = trajectory.index(repeated_state)
 
-    trimmed_trajectory = np.array([hashable.array for hashable in trajectory[:repeated_state_index]])
-    limit_cycle = np.array([hashable.array for hashable in trajectory[repeated_state_index:]])
+    trimmed_trajectory = np.array(
+        [hashable.array for hashable in trajectory[:repeated_state_index]]
+    )
+    limit_cycle = np.array(
+        [hashable.array for hashable in trajectory[repeated_state_index:]]
+    )
 
     return trimmed_trajectory, limit_cycle
 
 
-def process_model_text(model_text: str,
-                       knockouts: Dict[str, int],
-                       continuous: Dict[str, bool]
-                       ) -> Tuple[List[str], Callable, EquationSystem]:
+def process_model_text(
+    model_text: str, knockouts: Dict[str, int], continuous: Dict[str, bool]
+) -> Tuple[List[str], Callable, EquationSystem]:
     equation_system = EquationSystem.from_text(model_text)
     equation_system = equation_system.continuous_functional_system(
-            continuous_vars=tuple([var for var in continuous if continuous[var]])
-            )
+        continuous_vars=tuple([var for var in continuous if continuous[var]])
+    )
     equation_system = equation_system.knockout_system(knockouts)
 
     # create an update function

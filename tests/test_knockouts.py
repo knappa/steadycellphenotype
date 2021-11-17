@@ -12,12 +12,14 @@ def test_knockouts():
     A=B
     B=A"""
 
-    knockouts: Dict[str, int] = {'A': 1}  # knockout A
+    knockouts: Dict[str, int] = {"A": 1}  # knockout A
     continuous: Dict[str, bool] = {}  # no variables continuous
 
-    variables, update_fn, equation_system = process_model_text(model_text, knockouts, continuous)
+    variables, update_fn, equation_system = process_model_text(
+        model_text, knockouts, continuous
+    )
 
-    assert variables == ('A', 'B')
+    assert variables == ("A", "B")
 
     # function becomes constant on 2nd step
     for a, b in itertools.product(range(3), repeat=2):

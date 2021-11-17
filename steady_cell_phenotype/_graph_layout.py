@@ -34,29 +34,40 @@ def connected_component_layout(g: nx.DiGraph):
             return 0
         else:
             visited_set.add(parent)
-        predecessors = [predecessor
-                        for predecessor in g.predecessors(parent)
-                        if predecessor != parent]
+        predecessors = [
+            predecessor
+            for predecessor in g.predecessors(parent)
+            if predecessor != parent
+        ]
         if len(predecessors) == 0:
             return 1
         else:
             return sum(get_num_leaves(predecessor) for predecessor in predecessors)
 
     def recurse_layout(successor, radius: float, max_theta: float, min_theta: float):
-        predecessors = [predecessor
-                        for predecessor in g.predecessors(successor)
-                        if predecessor != successor and predecessor not in pos]
+        predecessors = [
+            predecessor
+            for predecessor in g.predecessors(successor)
+            if predecessor != successor and predecessor not in pos
+        ]
         if len(predecessors) == 0:
             return
 
-        angles = np.cumsum(np.array([0.0] + [get_num_leaves(predecessor) for predecessor in predecessors],
-                                    dtype=np.float64))
-        angles *= (max_theta - min_theta) / angles[-1] if angles[-1] != 0 else (max_theta - min_theta)
+        angles = np.cumsum(
+            np.array(
+                [0.0] + [get_num_leaves(predecessor) for predecessor in predecessors],
+                dtype=np.float64,
+            )
+        )
+        angles *= (
+            (max_theta - min_theta) / angles[-1]
+            if angles[-1] != 0
+            else (max_theta - min_theta)
+        )
         angles += min_theta
         for n, predecessor in enumerate(predecessors):
             theta_n = (angles[n + 1] + angles[n]) / 2.0
-            pos[predecessor] = radius * np.array([np.cos(theta_n),
-                                                  np.sin(theta_n)])
+            pos[predecessor] = radius * np.array([np.cos(theta_n), np.sin(theta_n)])
             recurse_layout(predecessor, radius + 20, angles[n + 1], angles[n])
 
     # lay out the cycle:
@@ -64,8 +75,9 @@ def connected_component_layout(g: nx.DiGraph):
         pos[base_point] = np.array([0.0, 0.0])
         recurse_layout(base_point, 20, 2 * np.pi, 0)
     else:
-        angles = np.cumsum(np.array([0] + [get_num_leaves(point) for point in cycle],
-                                    dtype=np.float64))
+        angles = np.cumsum(
+            np.array([0] + [get_num_leaves(point) for point in cycle], dtype=np.float64)
+        )
         angles *= 2 * np.pi / angles[-1] if angles[-1] != 0 else 2 * np.pi
         for n, point in enumerate(cycle):
             theta = (angles[n + 1] + angles[n]) / 2.0
@@ -86,12 +98,15 @@ def graph_layout(edge_lists: List[List[Dict[str, int]]], height_px, width_px):
     g: nx.DiGraph = nx.DiGraph()
     for edge_list in edge_lists:
         for edge in edge_list:
-            g.add_edge(edge['source'], edge['target'])
+            g.add_edge(edge["source"], edge["target"])
 
     # noinspection PyTypeChecker
     components_layouts = [
-        connected_component_layout(nx.subgraph_view(g, filter_node=lambda vertex: vertex in component_vertices))
-        for component_vertices in nx.weakly_connected_components(g)]
+        connected_component_layout(
+            nx.subgraph_view(g, filter_node=lambda vertex: vertex in component_vertices)
+        )
+        for component_vertices in nx.weakly_connected_components(g)
+    ]
 
     positions = dict()
     corner = np.array([-float(height_px) / 2, -float(width_px) / 2])

@@ -16,9 +16,11 @@ def test_update_fn1():
     knockouts: Dict[str, int] = {}  # no knockout
     continuous: Dict[str, bool] = {}  # all variables continuous
 
-    variables, update_fn, equation_system = process_model_text(model_text, knockouts, continuous)
+    variables, update_fn, equation_system = process_model_text(
+        model_text, knockouts, continuous
+    )
 
-    assert variables == ('A', 'B')
+    assert variables == ("A", "B")
 
     # function is order 2
     for a, b in itertools.product(range(3), repeat=2):
@@ -34,9 +36,11 @@ def test_update_fn2():
     knockouts: Dict[str, int] = {}  # no knockout
     continuous: Dict[str, bool] = {}  # all variables continuous
 
-    variables, update_fn, equation_system = process_model_text(model_text, knockouts, continuous)
+    variables, update_fn, equation_system = process_model_text(
+        model_text, knockouts, continuous
+    )
 
-    assert variables == ('A', 'B', 'C')
+    assert variables == ("A", "B", "C")
 
     # function is order 3
     for a, b, c in itertools.product(range(3), repeat=3):
