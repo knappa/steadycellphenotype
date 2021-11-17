@@ -8,3 +8,4 @@ Werkzeug~=1.0.1
 pathos~=0.2.7
 networkx>=2.5.1
 beautifulsoup4~=4.10.0
+lxml~=4.6.4
