@@ -18,81 +18,81 @@ from steady_cell_phenotype.equation_system import *
 
 def main():
     parser = argparse.ArgumentParser(
-            description="Converter from MAX/MIN/NOT formulae to either \n"
-                        + "low-degree polynomials over F_3 or a C-language simulator"
-            )
+        description="Converter from MAX/MIN/NOT formulae to either \n"
+        + "low-degree polynomials over F_3 or a C-language simulator"
+    )
     # noinspection SpellCheckingInspection
     parser.add_argument(
-            "-i",
-            "--inputfile",
-            help="input filename containing MAX/MIN/NOT formulae. required. ",
-            type=str,
-            )
+        "-i",
+        "--inputfile",
+        help="input filename containing MAX/MIN/NOT formulae. required. ",
+        type=str,
+    )
     # noinspection SpellCheckingInspection
     parser.add_argument(
-            "-o",
-            "--outputfile",
-            help="output filename for the polynomial formulae. "
-                 "if not provided, stdout is used",
-            type=str,
-            )
+        "-o",
+        "--outputfile",
+        help="output filename for the polynomial formulae. "
+        "if not provided, stdout is used",
+        type=str,
+    )
     parser.add_argument(
-            "-n",
-            "--non_descriptive",
-            action="store_true",
-            help="use non-descriptive names for variables",
-            )
+        "-n",
+        "--non_descriptive",
+        action="store_true",
+        help="use non-descriptive names for variables",
+    )
     parser.add_argument(
-            "-no-polys",
-            action="store_true",
-            help="do not output polynomials, used by default when "
-                 "output is by simulator",
-            )
+        "-no-polys",
+        action="store_true",
+        help="do not output polynomials, used by default when "
+        "output is by simulator",
+    )
     parser.add_argument(
-            "-sim", action="store_true", help="output C-language simulator program"
-            )
+        "-sim", action="store_true", help="output C-language simulator program"
+    )
     parser.add_argument(
-            "-graph", action="store_true", help="use the graph-creation simulator"
-            )
+        "-graph", action="store_true", help="use the graph-creation simulator"
+    )
     parser.add_argument(
-            "-complete_search",
-            action="store_true",
-            help="completely search the state-space",
-            )
+        "-complete_search",
+        action="store_true",
+        help="completely search the state-space",
+    )
     parser.add_argument(
-            "-init-val",
-            action="append",
-            nargs="+",
-            help="for simulators, fix initial values got some variables "
-                 "Ex: -init-val LIP 1",
-            )
+        "-init-val",
+        action="append",
+        nargs="+",
+        help="for simulators, fix initial values got some variables "
+        "Ex: -init-val LIP 1",
+    )
     parser.add_argument(
-            "--count",
-            type=int,
-            help="number of random points tried by the simulator, default 1,000,000.\n"
-                 "Ignored if the -sim flag is not used",
-            )
+        "--count",
+        type=int,
+        help="number of random points tried by the simulator, default 1,000,000.\n"
+        "Ignored if the -sim flag is not used",
+    )
     parser.add_argument(
-            "-c",
-            "--continuous",
-            action="store_true",
-            help="generate polynomials for continuous system, applied before the "
-                 "self-power operation",
-            )
+        "-c",
+        "--continuous",
+        action="store_true",
+        help="generate polynomials for continuous system, applied before the "
+        "self-power operation",
+    )
     parser.add_argument(
-            "-comit",
-            "--continuous-omit",
-            nargs="+",
-            help="list of variables to _not_ apply continuity operation to",
-            )
+        "-comit",
+        "--continuous-omit",
+        nargs="+",
+        help="list of variables to _not_ apply continuity operation to",
+    )
     parser.add_argument(
-            "-power",
-            "--self-power",
-            type=int,
-            help="gets polynomials for a power of the system. i.e. self-composition,"
-                 " power-1 times (default: 1) ignored for simulator"
-                 " Warning: This can take a long time!",
-            )
+        "-power",
+        "--self-power",
+        type=int,
+        help="gets polynomials for a power of the system. i.e. self-composition,"
+        " power-1 times (default: 1) ignored for simulator"
+        " Warning: This can take a long time!",
+    )
 
     args = parser.parse_args()
 
@@ -158,21 +158,21 @@ def main():
 
     if not args.continuous and args.continuous_omit:
         print(
-                "Asked to omit continuity for system which was not continuous."
-                " This is probably an error; exiting."
-                )
+            "Asked to omit continuity for system which was not continuous."
+            " This is probably an error; exiting."
+        )
         sys.exit(-1)
     if args.continuous is not None and args.continuous:
         all_variables = [str(var) for var in equation_system.symbol_table()]
         if args.continuous_omit is not None:
             continuous_variables = [
                 var for var in all_variables if var not in args.continuous_omit
-                ]
+            ]
         else:
             continuous_variables = all_variables
         equation_system = equation_system.continuous_polynomial_system(
-                continuous_vars=continuous_variables
-                )
+            continuous_vars=continuous_variables
+        )
 
     if args.sim or args.graph or args.complete_search:
         #################################################################
@@ -189,13 +189,13 @@ def main():
         do_complete_search = args.complete_search is not None and args.complete_search
 
         output_as_program(
-                equation_system=equation_system,
-                output_file=args.outputfile,
-                num_runs=count,
-                graph=use_graph,
-                complete_search=do_complete_search,
-                initial_values=initial_values,
-                )
+            equation_system=equation_system,
+            output_file=args.outputfile,
+            num_runs=count,
+            graph=use_graph,
+            complete_search=do_complete_search,
+            initial_values=initial_values,
+        )
     else:
         #################################################################
         # output polynomials
@@ -211,26 +211,26 @@ def main():
                 equation_system = equation_system.self_compose(count=args.self_power)
 
         output_as_formulae(
-                equation_system=equation_system,
-                translate_symbol_names_to_xs=translate_symbol_names_to_xs,
-                as_polynomials=not args.no_polys,
-                output_file=args.outputfile,
-                )
+            equation_system=equation_system,
+            translate_symbol_names_to_xs=translate_symbol_names_to_xs,
+            as_polynomials=not args.no_polys,
+            output_file=args.outputfile,
+        )
 
 
 ####################################################################################################
 
 
 def output_as_formulae(
-        equation_system,
-        translate_symbol_names_to_xs=True,
-        as_polynomials=True,
-        output_file=None,
-        ):
+    equation_system,
+    translate_symbol_names_to_xs=True,
+    as_polynomials=True,
+    output_file=None,
+):
     if as_polynomials:
         out_str_formulae = equation_system.polynomial_output(
-                translate_symbol_names=translate_symbol_names_to_xs
-                )
+            translate_symbol_names=translate_symbol_names_to_xs
+        )
     else:
         out_str_formulae = str(equation_system)
 
@@ -250,13 +250,13 @@ def output_as_formulae(
 
 
 def output_as_program(
-        equation_system,
-        output_file=None,
-        num_runs=1_000_000,
-        graph=False,
-        complete_search=False,
-        initial_values=None,
-        ):
+    equation_system,
+    output_file=None,
+    num_runs=1_000_000,
+    graph=False,
+    complete_search=False,
+    initial_values=None,
+):
     # get symbols, in order
     symbols = tuple(equation_system.target_variables())
 
@@ -283,79 +283,81 @@ int {function_name}({typed_param_list})
   return ( {c_formula} ) % 3;
 }}"""
         function = function_template.format(
-                target=target,
-                function_name=function_name,
-                typed_param_list=typed_param_list,
-                c_formula=string_c_formula,
-                )
+            target=target,
+            function_name=function_name,
+            typed_param_list=typed_param_list,
+            c_formula=string_c_formula,
+        )
 
         output_functions.append(function)
 
     # declarations of state variables
     variable_declaration = "\n".join(
-            [
-                "    int {name}_temp, {name};".format(name=symbol)
-                for symbol, formula in equation_system
-                ]
-            )
+        [
+            "    int {name}_temp, {name};".format(name=symbol)
+            for symbol, formula in equation_system
+        ]
+    )
 
     # random state initializer
     variable_initialization = "\n".join(
-            [
-                "    {name} = {value} % 3;".format(name=symbol, value=int(formula))
-                if isinstance(formula, int) or formula.is_constant()
-                else "    {name} = {value} % 3;".format(
-                        name=symbol, value=initial_values[symbol]
-                        )
-                if symbol in initial_values
-                else "    {name} = random() % 3;".format(name=symbol)
-                for symbol, formula in equation_system
-                ]
+        [
+            "    {name} = {value} % 3;".format(name=symbol, value=int(formula))
+            if isinstance(formula, int) or formula.is_constant()
+            else "    {name} = {value} % 3;".format(
+                name=symbol, value=initial_values[symbol]
             )
+            if symbol in initial_values
+            else "    {name} = random() % 3;".format(name=symbol)
+            for symbol, formula in equation_system
+        ]
+    )
 
     # deterministic search for loops
     state_for_loops_head = " ".join(
-            [
-                " int {name}_init_search = {value} % 3; ".format(
-                        name=symbol, value=int(formula)
-                        )
-                if isinstance(formula, int) or formula.is_constant()
-                else "  int {name}_init_search = {value} % 3;".format(
-                        name=symbol, value=initial_values[symbol]
-                        )
-                if symbol in initial_values
-                else "for(int {name}_init_search = 0;"
-                     " {name}_init_search < 3;"
-                     " {name}_init_search++ ) {{ ".format(name=symbol)
-                for symbol, formula in equation_system
-                ]
+        [
+            " int {name}_init_search = {value} % 3; ".format(
+                name=symbol, value=int(formula)
             )
+            if isinstance(formula, int) or formula.is_constant()
+            else "  int {name}_init_search = {value} % 3;".format(
+                name=symbol, value=initial_values[symbol]
+            )
+            if symbol in initial_values
+            else "for(int {name}_init_search = 0;"
+            " {name}_init_search < 3;"
+            " {name}_init_search++ ) {{ ".format(name=symbol)
+            for symbol, formula in equation_system
+        ]
+    )
 
     state_for_loops_tail = " ".join(
-            [
-                " "
-                if isinstance(formula, int) or formula.is_constant() or symbol in initial_values
-                else "}"
-                for symbol, formula in equation_system
-                ]
-            )
+        [
+            " "
+            if isinstance(formula, int)
+            or formula.is_constant()
+            or symbol in initial_values
+            else "}"
+            for symbol, formula in equation_system
+        ]
+    )
 
     fixed_variable_initialization = "\n".join(
-            [
-                "    {name} = {name}_init_search;".format(name=symbol)
-                for symbol, formula in equation_system
-                ]
-            )
+        [
+            "    {name} = {name}_init_search;".format(name=symbol)
+            for symbol, formula in equation_system
+        ]
+    )
 
     # run update, saving to temp variables
     def update_to_temp(indent=6):
         update_template = (indent * " ") + "{symbol}_temp = {func}({params});"
         return "\n".join(
-                [
-                    update_template.format(symbol=symbol, func=fn_name, params=param_list)
-                    for symbol, fn_name in zip(symbols, function_names)
-                    ]
-                )
+            [
+                update_template.format(symbol=symbol, func=fn_name, params=param_list)
+                for symbol, fn_name in zip(symbols, function_names)
+            ]
+        )
 
     # copy the temp variables over
     def copy_temp_vars(indent=6):
@@ -372,10 +374,12 @@ int {function_name}({typed_param_list})
     def neq_check(indent=4):
         neq_check_template = "{symbol} == {symbol}_init"
         return (
-                "!("
-                + " && ".join([neq_check_template.format(symbol=symbol) for symbol in symbols])
-                + ")"
+            "!("
+            + " && ".join(
+                [neq_check_template.format(symbol=symbol) for symbol in symbols]
             )
+            + ")"
+        )
 
     # print it out
     def print_state(indent=12):
@@ -384,30 +388,32 @@ int {function_name}({typed_param_list})
         header = (indent * " ") + 'printf("{ ");\n'
         footer = (indent * " ") + 'printf("}");\n'
         return (
-                header
-                + "\n".join([print_template.format(symbol=symbol)
-                             if num != len(symbols) - 1
-                             else print_template_last.format(symbol=symbol)
-                             for num, symbol in enumerate(symbols)
-                             ]
-                            )
-                + "\n"
-                + footer
+            header
+            + "\n".join(
+                [
+                    print_template.format(symbol=symbol)
+                    if num != len(symbols) - 1
+                    else print_template_last.format(symbol=symbol)
+                    for num, symbol in enumerate(symbols)
+                ]
             )
+            + "\n"
+            + footer
+        )
 
     # hash functions
     hash_one = "\n".join(
-            "  accumulator = 3*accumulator + {symbol};".format(symbol=symbol)
-            for symbol in symbols
-            )
+        "  accumulator = 3*accumulator + {symbol};".format(symbol=symbol)
+        for symbol in symbols
+    )
     hash_two = "\n".join(
-            "  accumulator = 5*accumulator + {symbol};".format(symbol=symbol)
-            for symbol in symbols
-            )
+        "  accumulator = 5*accumulator + {symbol};".format(symbol=symbol)
+        for symbol in symbols
+    )
     hash_three = "\n".join(
-            "  accumulator = 7*accumulator + {symbol};".format(symbol=symbol)
-            for symbol in symbols
-            )
+        "  accumulator = 7*accumulator + {symbol};".format(symbol=symbol)
+        for symbol in symbols
+    )
 
     if graph:
         # alternate for graph!
@@ -420,28 +426,28 @@ int {function_name}({typed_param_list})
 
     # and use it
     program_text = template.format(
-            param_list=param_list,
-            typed_param_list=typed_param_list,
-            accumulate_hash_one=hash_one,
-            accumulate_hash_two=hash_two,
-            accumulate_hash_three=hash_three,
-            update_functions="\n".join(output_functions),
-            compute_next6=update_to_temp(indent=6),
-            compute_next8=update_to_temp(indent=8),
-            compute_next12=update_to_temp(indent=12),
-            copy6=copy_temp_vars(indent=6),
-            copy8=copy_temp_vars(indent=8),
-            copy12=copy_temp_vars(indent=12),
-            declare_variables=variable_declaration,
-            initialize_variables=variable_initialization,
-            print_state=print_state(),
-            variable_stash=state_stash(indent=4),
-            neq_check=neq_check(indent=4),
-            num_runs=num_runs,
-            state_for_loops_head=state_for_loops_head,
-            state_for_loops_tail=state_for_loops_tail,
-            fixed_variable_initialization=fixed_variable_initialization,
-            )
+        param_list=param_list,
+        typed_param_list=typed_param_list,
+        accumulate_hash_one=hash_one,
+        accumulate_hash_two=hash_two,
+        accumulate_hash_three=hash_three,
+        update_functions="\n".join(output_functions),
+        compute_next6=update_to_temp(indent=6),
+        compute_next8=update_to_temp(indent=8),
+        compute_next12=update_to_temp(indent=12),
+        copy6=copy_temp_vars(indent=6),
+        copy8=copy_temp_vars(indent=8),
+        copy12=copy_temp_vars(indent=12),
+        declare_variables=variable_declaration,
+        initialize_variables=variable_initialization,
+        print_state=print_state(),
+        variable_stash=state_stash(indent=4),
+        neq_check=neq_check(indent=4),
+        num_runs=num_runs,
+        state_for_loops_head=state_for_loops_head,
+        state_for_loops_tail=state_for_loops_tail,
+        fixed_variable_initialization=fixed_variable_initialization,
+    )
 
     if output_file:
         try:
