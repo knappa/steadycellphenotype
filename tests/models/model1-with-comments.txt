@@ -1,0 +1,4 @@
+# test model
+A=A+B # sum
+B=A-B # difference
+
