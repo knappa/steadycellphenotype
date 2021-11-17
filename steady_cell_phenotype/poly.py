@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import operator
 from enum import Enum
 from itertools import product
-import operator
 from typing import Dict, Union
 
 import numpy as np
