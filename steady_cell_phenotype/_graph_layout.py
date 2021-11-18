@@ -53,22 +53,22 @@ def connected_component_layout(g: nx.DiGraph):
         if len(predecessors) == 0:
             return
 
-        angles = np.cumsum(
+        angles_recur = np.cumsum(
             np.array(
                 [0.0] + [get_num_leaves(predecessor) for predecessor in predecessors],
                 dtype=np.float64,
             )
         )
-        angles *= (
-            (max_theta - min_theta) / angles[-1]
-            if angles[-1] != 0
+        angles_recur *= (
+            (max_theta - min_theta) / angles_recur[-1]
+            if angles_recur[-1] != 0
             else (max_theta - min_theta)
         )
-        angles += min_theta
-        for n, predecessor in enumerate(predecessors):
-            theta_n = (angles[n + 1] + angles[n]) / 2.0
+        angles_recur += min_theta
+        for m, predecessor in enumerate(predecessors):
+            theta_n = (angles_recur[m + 1] + angles_recur[m]) / 2.0
             pos[predecessor] = radius * np.array([np.cos(theta_n), np.sin(theta_n)])
-            recurse_layout(predecessor, radius + 20, angles[n + 1], angles[n])
+            recurse_layout(predecessor, radius + 20, angles_recur[m + 1], angles_recur[m])
 
     # lay out the cycle:
     if cycle_len == 1:
