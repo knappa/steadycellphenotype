@@ -5,11 +5,9 @@ import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
-from typing import Callable, List, Optional, Sequence, Tuple
+from typing import Callable, List, Optional, Sequence
 
 from attr import attrib, attrs
-from bs4 import BeautifulSoup
-from bs4.element import ResultSet, Tag
 
 from steady_cell_phenotype.poly import *
 
@@ -23,8 +21,6 @@ try:
     PARALLEL = True
 except ImportError:
     PARALLEL = False
-
-ExpressionOrInt = Union[int, Expression]
 
 
 ####################################################################################################
@@ -777,7 +773,7 @@ class EquationSystem(object):
     #             for var in self._equation_dict}
 
     def as_numpy(self) -> Tuple[Tuple[str], Callable]:
-        variables = tuple(self._equation_dict.keys())
+        variables: Tuple[str] = tuple(self._equation_dict.keys())
 
         functions = [
             self._equation_dict[var].as_numpy_str(variables)

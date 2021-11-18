@@ -3,9 +3,15 @@ from __future__ import annotations
 import operator
 from enum import Enum
 from itertools import product
-from typing import Dict, Union
+from typing import Dict, List, Tuple, Union
 
 import numpy as np
+from bs4 import BeautifulSoup
+from bs4.element import Tag
+
+PRIME = 3
+
+ExpressionOrInt = Union[int, "Expression"]
 
 
 class Operation(Enum):
@@ -22,10 +28,10 @@ class Operation(Enum):
 ####################################################################################################
 
 
-def h(x, fx):
+def h(x: int, fx: int):
     """helper function as in the PLoS article, doi:10.1371/journal.pcbi.1005352.t003 pg 16/24"""
-    fx = fx % 3
-    x = x % 3
+    fx %= PRIME
+    x %= PRIME
     if fx > x:
         return x + 1
     elif fx < x:
@@ -106,10 +112,11 @@ class Expression(object):
     #     """
     #     raise NotImplementedError("as_sympy() unimplemented in " + str(type(self)))
 
-    def as_numpy_str(self, variables) -> str:
+    def as_numpy_str(self, variables: Tuple[str]) -> str:
         """
-        returns numpy-based function of variables, with order corresponding to that
-        given in the variables parameter
+        Returns numpy-based function of variables.
+
+        Order corresponds to that given in the variables parameter
 
         Parameters
         ----------
@@ -120,6 +127,22 @@ class Expression(object):
         lambda with len(variables) parameters
         """
         raise NotImplementedError("as_numpy_str() unimplemented in " + str(type(self)))
+
+    def as_mathml(self) -> BeautifulSoup:
+        """
+        Returns a mathml-based representation of the expression.
+
+        Returns
+        -------
+        BeautifulSoup
+        """
+        soup = BeautifulSoup(
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"></math>', "html.parser"
+        )
+        return self._make_inner_mathml(soup, soup.findChild("math"))
+
+    def _make_inner_mathml(self, soup: BeautifulSoup, parent_tag: Tag):
+        raise NotImplementedError("_inner_mathml() unimplemented in " + str(type(self)))
 
     def get_variable_set(self):
         """returns a set containing all variable which occur in this expression"""
@@ -187,7 +210,7 @@ class Expression(object):
         for control_variable_value in range(3):
             evaluated_poly = self.eval({control_variable: control_variable_value})
             if is_integer(evaluated_poly) or evaluated_poly.is_constant():
-                computed_value = int(evaluated_poly)
+                computed_value: int = int(evaluated_poly)
                 continuous_value = h(control_variable_value, computed_value)
                 accumulator += continuous_value * (
                     1 - (control_variable - control_variable_value) ** 2
@@ -209,7 +232,7 @@ class Expression(object):
         for free_variable_value in range(3):
             evaluated_poly = self.eval({free_variable: free_variable_value})
             if is_integer(evaluated_poly) or evaluated_poly.is_constant():
-                computed_value = int(evaluated_poly)
+                computed_value: int = int(evaluated_poly)
                 continuous_value = h(control_variable_value, computed_value)
                 accumulator += continuous_value * (
                     1 - (free_variable - free_variable_value) ** 2
@@ -271,9 +294,9 @@ def is_integer(x):
 
 
 class Function(Expression):
-    def __init__(self, function_name, expression_list):
+    def __init__(self, function_name: str, expression_list):
         self._function_name = function_name
-        self._expression_list = expression_list
+        self._expression_list: List[ExpressionOrInt] = expression_list
 
     def rename_variables(self, name_dict: Dict[str, str]):
         renamed_parameters = [
@@ -453,9 +476,7 @@ class Function(Expression):
             str(expr) if is_integer(expr) else expr.as_numpy_str(variables)
             for expr in self._expression_list
         ]
-        # this one is slow
-        # continuous_str = \
-        #    "( (({1})>({0})) * (({0})+1) + (({1})<({0})) * (({0})-1) + (({1})==({0}))*({0}) )"
+
         continuous_str = "( {0}+np.sign(np.mod({1},3)-np.mod({0},3)) )"
         max_str = "np.maximum(np.mod({0},3),np.mod({1},3))"
         min_str = "np.minimum(np.mod({0},3),np.mod({1},3))"
@@ -482,6 +503,33 @@ class Function(Expression):
         function = function_strings[self._function_name][1]
 
         return function.format(*np_parameter_strings)
+
+    def _make_inner_mathml(self, soup: BeautifulSoup, parent_tag: Tag):
+
+        apply_tag = Tag(name="apply", is_xml=True)
+        apply_tag.append(parent_tag)
+
+        mathml_function_strings = {
+            "MAX": Tag(name="max", is_xml=True, can_be_empty_element=True),
+            "MIN": Tag(name="max", is_xml=True, can_be_empty_element=True),
+        }
+
+        if self._function_name in mathml_function_strings:
+            parent_tag.append(mathml_function_strings[self._function_name])
+            for expression in self._expression_list:
+                parent_tag.append(expression._make_inner_mathml(soup, apply_tag))
+        elif self._function_name == "NOT":
+            # rewrite as (prime-1)-expression
+            apply_tag.append(Tag(name="minus", is_xml=True, can_be_empty_element=True))
+            primem1 = BeautifulSoup(
+                f"<apply><minus><cn>{PRIME}</cn><cn>1</cn></apply>", "html.parser"
+            )
+            apply_tag.append(primem1)
+            self._expression_list[0]._make_inner_mathml(soup, apply_tag)
+        else:
+            raise NotImplementedError(
+                "_inner_mathml() unimplemented in " + str(type(self))
+            )
 
     def get_variable_set(self):
         var_set = set()
