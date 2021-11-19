@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import operator
 from enum import Enum
 from itertools import product
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
+from attr import attrib, attrs
 from bs4 import BeautifulSoup
 from bs4.element import Tag
 
@@ -38,6 +38,35 @@ def h(x: int, fx: int):
         return x - 1
     else:
         return x
+
+
+####################################################################################################
+
+
+def inner_mathml_constant(value: int) -> Tag:
+    constant_tag = Tag(name="cn", is_xml=True)
+    constant_tag.append(str(value))
+    return constant_tag
+
+
+def inner_mathml_variable(var_name: str) -> Tag:
+    var_tag = Tag(name="ci", is_xml=True)
+    var_tag.append(var_name)
+    return var_tag
+
+
+def single_var_to_power_inner_mathml(var_name: str, power: int) -> Tag:
+    """Handle var^power"""
+    if power == 0:
+        return inner_mathml_constant(1)
+    elif power == 1:
+        return inner_mathml_variable(var_name)
+    else:
+        top_tag = Tag(name="apply", is_xml=True)
+        top_tag.append(Tag(name="power", is_xml=True, can_be_empty_element=True))
+        top_tag.append(inner_mathml_variable(var_name))
+        top_tag.append(inner_mathml_constant(power))
+        return top_tag
 
 
 ####################################################################################################
@@ -130,7 +159,7 @@ class Expression(object):
 
     def as_mathml(self) -> BeautifulSoup:
         """
-        Returns a mathml-based representation of the expression.
+        Finds a mathml-based representation of the expression.
 
         Returns
         -------
@@ -139,9 +168,36 @@ class Expression(object):
         soup = BeautifulSoup(
             '<math xmlns="http://www.w3.org/1998/Math/MathML"></math>', "html.parser"
         )
-        return self._make_inner_mathml(soup, soup.findChild("math"))
+        soup.findChild("math").append(self._make_inner_mathml())
 
-    def _make_inner_mathml(self, soup: BeautifulSoup, parent_tag: Tag):
+        return soup
+
+    def as_sbml_qual_relation(self, level: int) -> BeautifulSoup:
+        """
+        Finds a mathml represenation of 'level=expression', suitable for inclusion in SBML-qual.
+
+        Parameters
+        ----------
+        level: int
+
+        Returns
+        -------
+        BeautifulSoup
+        """
+
+        apply_tag = Tag(name="apply", is_xml=True)
+        apply_tag.append(Tag(name="eq", is_xml=True, can_be_empty_element=True))
+        apply_tag.append(inner_mathml_constant(level))
+        apply_tag.append(self._make_inner_mathml())
+
+        soup = BeautifulSoup(
+            '<math xmlns="http://www.w3.org/1998/Math/MathML"></math>', "html.parser"
+        )
+        soup.findChild("math").append(apply_tag)
+
+        return soup
+
+    def _make_inner_mathml(self) -> Union[BeautifulSoup, Tag]:
         raise NotImplementedError("_inner_mathml() unimplemented in " + str(type(self)))
 
     def get_variable_set(self):
@@ -504,10 +560,8 @@ class Function(Expression):
 
         return function.format(*np_parameter_strings)
 
-    def _make_inner_mathml(self, soup: BeautifulSoup, parent_tag: Tag):
-
+    def _make_inner_mathml(self) -> Tag:
         apply_tag = Tag(name="apply", is_xml=True)
-        apply_tag.append(parent_tag)
 
         mathml_function_strings = {
             "MAX": Tag(name="max", is_xml=True, can_be_empty_element=True),
@@ -515,21 +569,20 @@ class Function(Expression):
         }
 
         if self._function_name in mathml_function_strings:
-            parent_tag.append(mathml_function_strings[self._function_name])
+            apply_tag.append(mathml_function_strings[self._function_name])
             for expression in self._expression_list:
-                parent_tag.append(expression._make_inner_mathml(soup, apply_tag))
+                apply_tag.append(expression._make_inner_mathml())
         elif self._function_name == "NOT":
             # rewrite as (prime-1)-expression
             apply_tag.append(Tag(name="minus", is_xml=True, can_be_empty_element=True))
-            primem1 = BeautifulSoup(
-                f"<apply><minus><cn>{PRIME}</cn><cn>1</cn></apply>", "html.parser"
-            )
-            apply_tag.append(primem1)
-            self._expression_list[0]._make_inner_mathml(soup, apply_tag)
+            apply_tag.append(inner_mathml_constant(PRIME - 1))
+            apply_tag.append(self._expression_list[0]._make_inner_mathml())
         else:
             raise NotImplementedError(
                 "_inner_mathml() unimplemented in " + str(type(self))
             )
+
+        return apply_tag
 
     def get_variable_set(self):
         var_set = set()
@@ -543,18 +596,18 @@ class BinaryOperation(Expression):
     def __init__(
         self,
         relation_name,
-        left_expression: Union[Expression, int],
-        right_expression: Union[Expression, int],
+        left_expression: ExpressionOrInt,
+        right_expression: ExpressionOrInt,
     ):
-        self.relation_name = relation_name
-        self._left_expression: Union[Expression, int] = left_expression
-        self._right_expression: Union[Expression, int] = right_expression
+        self._relation_name = relation_name
+        self._left_expression: ExpressionOrInt = left_expression
+        self._right_expression: ExpressionOrInt = right_expression
 
     def rename_variables(self, name_dict: Dict[str, str]):
         renamed_left_expression = rename_helper(self._left_expression, name_dict)
         renamed_right_expression = rename_helper(self._right_expression, name_dict)
         return BinaryOperation(
-            self.relation_name,
+            self._relation_name,
             left_expression=renamed_left_expression,
             right_expression=renamed_right_expression,
         )
@@ -601,27 +654,23 @@ class BinaryOperation(Expression):
             else evaled_right_expr
         )
 
-        if self.relation_name == "PLUS":
-            return evaled_left_expr + evaled_right_expr
-        elif self.relation_name == "MINUS":
-            return evaled_left_expr - evaled_right_expr
-        elif self.relation_name == "TIMES":
-            return evaled_left_expr * evaled_right_expr
-        elif self.relation_name == "EXP":
-            return evaled_left_expr ** evaled_right_expr
+        operations = {
+            "PLUS": lambda l, r: l + r,
+            "MINUS": lambda l, r: l - r,
+            "TIMES": lambda l, r: l * r,
+            "EXP": lambda l, r: l ** r,
+        }
+        if self._relation_name in operations:
+            return operations[self._relation_name](evaled_left_expr, evaled_right_expr)
         else:
-            raise Exception("cannot evaluate unknown binary op: " + self.relation_name)
+            raise Exception(f"cannot evaluate unknown binary op: {self._relation_name}")
 
     def __str__(self):
-        short_relation_name = "?"
-        if self.relation_name == "PLUS":
-            short_relation_name = "+"
-        elif self.relation_name == "MINUS":
-            short_relation_name = "-"
-        elif self.relation_name == "TIMES":
-            short_relation_name = "*"
-        elif self.relation_name == "EXP":
-            short_relation_name = "^"
+        short_relation_names = {"PLUS": "+", "MINUS": "-", "TIMES": "*", "EXP": "^"}
+        if self._relation_name in short_relation_names:
+            short_relation_name = short_relation_names[self._relation_name]
+        else:
+            short_relation_name = "?"
 
         left_side = str(self._left_expression)
         if isinstance(self._left_expression, BinaryOperation):
@@ -646,20 +695,20 @@ class BinaryOperation(Expression):
         else:
             right_c_expr = self._right_expression.as_c_expression()
 
-        if self.relation_name == "PLUS":
+        if self._relation_name == "PLUS":
             return "(" + left_c_expr + ")+(" + right_c_expr + ")"
 
-        elif self.relation_name == "MINUS":
+        elif self._relation_name == "MINUS":
             return "(" + left_c_expr + ")-(" + right_c_expr + ")"
 
-        elif self.relation_name == "TIMES":
+        elif self._relation_name == "TIMES":
             return "(" + left_c_expr + ")*(" + right_c_expr + ")"
 
-        elif self.relation_name == "EXP":
+        elif self._relation_name == "EXP":
             return "mod3pow(" + left_c_expr + "," + right_c_expr + ")"
 
         else:
-            raise Exception("Unknown binary relation: " + self.relation_name)
+            raise Exception("Unknown binary relation: " + self._relation_name)
 
     def as_polynomial(self):
         if is_integer(self._left_expression):
@@ -672,16 +721,16 @@ class BinaryOperation(Expression):
         else:
             right_poly = self._right_expression.as_polynomial()
 
-        if self.relation_name == "PLUS":
+        if self._relation_name == "PLUS":
             return left_poly + right_poly
 
-        elif self.relation_name == "MINUS":
+        elif self._relation_name == "MINUS":
             return left_poly - right_poly
 
-        elif self.relation_name == "TIMES":
+        elif self._relation_name == "TIMES":
             return left_poly * right_poly
 
-        elif self.relation_name == "EXP":
+        elif self._relation_name == "EXP":
             # simplify the exponent = 0, 1 cases
             if is_integer(right_poly):
                 if right_poly == 0:
@@ -693,7 +742,7 @@ class BinaryOperation(Expression):
             else:
                 return left_poly ** right_poly
         else:
-            raise Exception("Unknown binary relation: " + self.relation_name)
+            raise Exception("Unknown binary relation: " + self._relation_name)
 
     # def as_sympy(self):
     #     """
@@ -749,8 +798,8 @@ class BinaryOperation(Expression):
             "EXP": "(({0})**({1}))",
         }
 
-        if self.relation_name not in relations:
-            raise Exception("Unknown binary relation: " + self.relation_name)
+        if self._relation_name not in relations:
+            raise Exception("Unknown binary relation: " + self._relation_name)
 
         lhs = (
             str(self._left_expression)
@@ -763,7 +812,28 @@ class BinaryOperation(Expression):
             else self._right_expression.as_numpy_str(variables)
         )
 
-        return relations[self.relation_name].format(lhs, rhs)
+        return relations[self._relation_name].format(lhs, rhs)
+
+    def _make_inner_mathml(self) -> Tag:
+        apply_tag = Tag(name="apply", is_xml=True)
+
+        mathml_relations = {
+            "PLUS": Tag(name="add", is_xml=True, can_be_empty_element=True),
+            "MINUS": Tag(name="minus", is_xml=True, can_be_empty_element=True),
+            "TIMES": Tag(name="times", is_xml=True, can_be_empty_element=True),
+            "EXP": Tag(name="power", is_xml=True, can_be_empty_element=True),
+        }
+
+        if self._relation_name in mathml_relations:
+            apply_tag.append(mathml_relations[self._relation_name])
+            apply_tag.append(self._left_expression._make_inner_mathml())
+            apply_tag.append(self._right_expression._make_inner_mathml())
+        else:
+            raise NotImplementedError(
+                f"_inner_mathml() unimplemented for {self._relation_name} in {type(self)}"
+            )
+
+        return apply_tag
 
     def get_variable_set(self):
         var_set = set()
@@ -777,7 +847,7 @@ class BinaryOperation(Expression):
 class UnaryRelation(Expression):
     def __init__(self, relation_name, expr):
         self._relation_name = relation_name
-        self._expr = expr
+        self._expr: ExpressionOrInt = expr
 
     def rename_variables(self, name_dict: Dict[str, str]):
         return UnaryRelation(
@@ -839,22 +909,22 @@ class UnaryRelation(Expression):
         else:
             raise Exception("Unknown unary relation: " + self._relation_name)
 
-    def as_sympy(self):
-        """
-        Convert to sympy expression
-        Returns
-        -------
-        sympy expression
-        """
-
-        relations = {"MINUS": operator.neg}
-
-        if self._relation_name not in relations:
-            raise Exception("Unknown unary relation: " + self._relation_name)
-
-        expr = self._expr if is_integer(self._expr) else self._expr.as_sympy()
-
-        return relations[self._relation_name](expr)
+    # def as_sympy(self):
+    #     """
+    #     Convert to sympy expression
+    #     Returns
+    #     -------
+    #     sympy expression
+    #     """
+    #
+    #     relations = {"MINUS": operator.neg}
+    #
+    #     if self._relation_name not in relations:
+    #         raise Exception("Unknown unary relation: " + self._relation_name)
+    #
+    #     expr = self._expr if is_integer(self._expr) else self._expr.as_sympy()
+    #
+    #     return relations[self._relation_name](expr)
 
     def as_numpy_str(self, variables):
         """
@@ -881,6 +951,23 @@ class UnaryRelation(Expression):
 
         return relations[self._relation_name].format(expr_str)
 
+    def _make_inner_mathml(self) -> Tag:
+        apply_tag = Tag(name="apply", is_xml=True)
+
+        mathml_relations = {
+            "MINUS": Tag(name="minus", is_xml=True, can_be_empty_element=True),
+        }
+
+        if self._relation_name in mathml_relations:
+            apply_tag.append(mathml_relations[self._relation_name])
+            apply_tag.append(self._expr._make_inner_mathml())
+        else:
+            raise NotImplementedError(
+                f"_inner_mathml() unimplemented for {self._relation_name} in {type(self)}"
+            )
+
+        return apply_tag
+
     def get_variable_set(self):
         if is_integer(self._expr):
             return set()
@@ -891,10 +978,13 @@ class UnaryRelation(Expression):
 ####################################################################################################
 
 
+@attrs(init=False, cmp=False)
 class Monomial(Expression):
     """A class to encapsulate monomials reduced by x^3-x==0 for all variables x"""
 
-    def __init__(self, power_dict: dict):
+    _power_dict: Dict[str, int] = attrib()
+
+    def __init__(self, power_dict: Dict[str, int]):
         # copy over only those terms which actually appear
         self._power_dict = {
             str(var): power_dict[var] for var in power_dict if power_dict[var] != 0
@@ -1011,10 +1101,15 @@ class Monomial(Expression):
     def __neg__(self):
         return (-1) * self
 
-    def __pow__(self, power, **kwargs):
-        if type(power) == Mod3Poly and power.is_constant():
-            power = power[Monomial.unit()]
-        assert is_integer(power)
+    def __pow__(self, power: ExpressionOrInt, **kwargs):
+        if type(power) != int:
+            if power.is_constant():
+                power = int(power)
+            else:
+                raise NotImplementedError(
+                    "Cannot raise an Expression to a non-integer power"
+                )
+
         if power == 0:
             return Monomial.unit()
         elif power == 1:
@@ -1205,12 +1300,33 @@ class Monomial(Expression):
             + ")"
         )
 
+    def _make_inner_mathml(self) -> Tag:
+        if len(self._power_dict) == 0:
+            return inner_mathml_constant(1)
+
+        if len(self._power_dict) == 1:
+            # we don't need an enclosing product when there is only a single variable^power
+            var, power = list(self._power_dict.items())[0]
+            return single_var_to_power_inner_mathml(var, power)
+
+        apply_tag = Tag(name="apply", is_xml=True)
+        product_tag = Tag(name="times", is_xml=True, can_be_empty_element=True)
+        apply_tag.append(product_tag)
+
+        for var, power in self._power_dict.items():
+            apply_tag.append(single_var_to_power_inner_mathml(var, power))
+
+        return apply_tag
+
 
 ####################################################################################################
 
 
+@attrs(init=False)
 class Mod3Poly(Expression):
     """a sparse polynomial class"""
+
+    coeff_dict: Dict[Monomial, int] = attrib()
 
     def __init__(self, coeffs: Union[Dict, int]):
         if type(coeffs) == dict:
@@ -1471,3 +1587,39 @@ class Mod3Poly(Expression):
             )
             + ")"
         )
+
+    def _make_inner_mathml(self) -> Tag:
+
+        num_terms = len(self.coeff_dict)
+
+        if num_terms == 0:
+            return inner_mathml_constant(0)
+        elif num_terms == 1:
+            monomial, coefficient = list(self.coeff_dict.items())[0]
+            apply_tag = Tag(name="apply", is_xml=True)
+            apply_tag.append(Tag(name="times", is_xml=True, can_be_empty_element=True))
+            apply_tag.append(inner_mathml_constant(coefficient))
+            # noinspection PyProtectedMember
+            apply_tag.append(monomial._make_inner_mathml())
+            return apply_tag
+        else:
+            top_apply_tag = Tag(name="apply", is_xml=True)
+            top_apply_tag.append(
+                Tag(name="plus", is_xml=True, can_be_empty_element=True)
+            )
+            for monomial, coefficient in self.coeff_dict.items():
+                if coefficient == 0:
+                    top_apply_tag.append(inner_mathml_constant(0))
+                elif coefficient == 1:
+                    # noinspection PyProtectedMember
+                    top_apply_tag.append(monomial._make_inner_mathml())
+                else:
+                    inner_apply_tag = Tag(name="apply", is_xml=True)
+                    inner_apply_tag.append(
+                        Tag(name="times", is_xml=True, can_be_empty_element=True)
+                    )
+                    inner_apply_tag.append(inner_mathml_constant(coefficient))
+                    # noinspection PyProtectedMember
+                    inner_apply_tag.append(monomial._make_inner_mathml())
+                    top_apply_tag.append(inner_apply_tag)
+            return top_apply_tag

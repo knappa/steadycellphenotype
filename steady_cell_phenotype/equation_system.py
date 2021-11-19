@@ -5,9 +5,10 @@ import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
-from attr import attrib, attrs
+# noinspection PyProtectedMember
+from bs4 import ResultSet
 
 from steady_cell_phenotype.poly import *
 
