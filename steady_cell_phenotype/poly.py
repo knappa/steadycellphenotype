@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from enum import Enum
 from itertools import product
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union
 
 import numpy as np
 from attr import attrib, attrs
@@ -200,7 +200,7 @@ class Expression(object):
     def _make_inner_mathml(self) -> Union[BeautifulSoup, Tag]:
         raise NotImplementedError("_inner_mathml() unimplemented in " + str(type(self)))
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         """returns a set containing all variable which occur in this expression"""
         raise NotImplementedError("get_var_set() unimplemented in " + str(type(self)))
 
@@ -584,7 +584,7 @@ class Function(Expression):
 
         return apply_tag
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         var_set = set()
         for expr in self._expression_list:
             if not is_integer(expr):
@@ -835,7 +835,7 @@ class BinaryOperation(Expression):
 
         return apply_tag
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         var_set = set()
         if not is_integer(self._left_expression):
             var_set = var_set.union(self._left_expression.get_variable_set())
@@ -968,7 +968,7 @@ class UnaryRelation(Expression):
 
         return apply_tag
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         if is_integer(self._expr):
             return set()
         else:
@@ -1067,7 +1067,7 @@ class Monomial(Expression):
                 accumulator *= Monomial.as_var(variable) ** self._power_dict[variable]
         return accumulator
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         """returns a set containing all variable which occur in this monomial"""
         return {var for var in self._power_dict if self._power_dict[var] != 0}
 
@@ -1395,7 +1395,7 @@ class Mod3Poly(Expression):
             accumulator += coeff * monomial.eval(variable_dict)
         return accumulator
 
-    def get_variable_set(self):
+    def get_variable_set(self) -> Set[str]:
         """return a set containing all variables which occur in this polynomial"""
         var_set = set()
         for monomial in self.coeff_dict:

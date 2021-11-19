@@ -1,8 +1,16 @@
 <?xml version='1.0' encoding='UTF-8' standalone='no'?>
-<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core" layout:required="false" level="3" qual:required="true" xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1" version="1" xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+<sbml xmlns="http://www.sbml.org/sbml/level3/version1/core"
+      layout:required="false"
+      level="3"
+      qual:required="true"
+      xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1"
+      version="1"
+      xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
   <model id="test model">
 
-    <layout:listOfLayouts xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <layout:listOfLayouts
+        xmlns:layout="http://www.sbml.org/sbml/level3/version1/layout/version1"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
       <layout:layout>
         <layout:listOfSpeciesGlyphs>
           <layout:speciesGlyph layout:species="G0">
@@ -44,7 +52,8 @@
           qual:id="G2"/>
     </qual:listOfQualitativeSpecies>
 
-    <qual:listOfTransitions xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
+    <qual:listOfTransitions
+        xmlns:qual="http://www.sbml.org/sbml/level3/version1/qual/version1">
       <qual:transition qual:id="tr_G1">
         <qual:listOfInputs>
           <qual:input
