@@ -68,7 +68,9 @@ def connected_component_layout(g: nx.DiGraph):
         for m, predecessor in enumerate(predecessors):
             theta_n = (angles_recur[m + 1] + angles_recur[m]) / 2.0
             pos[predecessor] = radius * np.array([np.cos(theta_n), np.sin(theta_n)])
-            recurse_layout(predecessor, radius + 20, angles_recur[m + 1], angles_recur[m])
+            recurse_layout(
+                predecessor, radius + 20, angles_recur[m + 1], angles_recur[m]
+            )
 
     # lay out the cycle:
     if cycle_len == 1:
