@@ -44,7 +44,7 @@ def h(x: int, fx: int):
 
 
 def inner_mathml_constant(value: int) -> Tag:
-    constant_tag = Tag(name="cn", is_xml=True)
+    constant_tag = Tag(name="cn", is_xml=True, attrs={"type": "integer"})
     constant_tag.append(str(value))
     return constant_tag
 
