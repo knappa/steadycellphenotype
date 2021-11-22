@@ -1426,7 +1426,7 @@ class Monomial(Expression):
 ####################################################################################################
 
 
-@attrs(init=False, repr=False, str=False)
+@attrs(init=False, repr=False, str=False, eq=False)
 class Mod3Poly(Expression):
     """a sparse polynomial class"""
 
@@ -1528,6 +1528,33 @@ class Mod3Poly(Expression):
         else:
             # only one entry
             return Monomial.unit() in self.coeff_dict
+
+    def __eq__(self, other):
+        if isinstance(other, int):
+            return self.is_constant() and int(self) == other
+        elif not isinstance(other, Expression):
+            return False
+
+        if not isinstance(other, Mod3Poly):
+            other_as_poly: Mod3Poly = other.as_poly()
+        else:
+            other_as_poly = other
+
+        for term in self.coeff_dict:
+            if (
+                term not in other_as_poly.coeff_dict
+                or (self.coeff_dict[term] - other_as_poly.coeff_dict[term]) % 3 != 0
+            ):
+                return False
+
+        for term in other_as_poly.coeff_dict:
+            if (
+                term not in self.coeff_dict
+                or (self.coeff_dict[term] - other_as_poly.coeff_dict[term]) % 3 != 0
+            ):
+                return False
+
+        return True
 
     def __getitem__(self, index):
         if index in self.coeff_dict:
