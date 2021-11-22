@@ -24,11 +24,13 @@ import tempfile
 from typing import Dict, List
 
 import matplotlib
+from bs4 import BeautifulSoup
 from flask import (Flask, Response, make_response, render_template, request,
                    session)
 from werkzeug.utils import secure_filename
 
-from steady_cell_phenotype._util import error_report, get_model_variables
+from steady_cell_phenotype._util import (error_report, get_model_variables,
+                                         process_model_text)
 from steady_cell_phenotype.equation_system import ParseError
 
 matplotlib.use("agg")
@@ -98,6 +100,41 @@ def create_app(test_config=None):
         except KeyError:
             response = make_response(error_report("Something odd happened."))
             return response
+
+    ################################################################################################
+    # a model download page
+
+    @app.route("/download-model/<string:modeltype>", methods=["GET", "POST"])
+    def download_model(modeltype: str) -> Response:
+
+        if session.new or "model_text" not in session:
+            return make_response(
+                error_report("Please go to the main page to enter your model.")
+            )
+
+        use_sbml_qual_format = modeltype[-5:] == ".sbml"
+        use_text_format = modeltype[-4:] == ".txt"
+
+        # get the variable list and right hand sides
+        model_text: str = session["model_text"]
+
+        variables, update_fn, equation_system = process_model_text(
+            model_text, dict(), dict()
+        )
+
+        if use_text_format:
+            response = make_response(str(equation_system))
+            response.headers['Content-Type'] = 'text/plain'
+            return response
+
+        if use_sbml_qual_format:
+            sbml_qual: BeautifulSoup = equation_system.as_sbml_qual()
+            response = make_response(str(sbml_qual.prettify()))
+            response.headers['Content-Type'] = 'application/xml'
+            return response
+
+
+        return make_response(error_report("Unknown Error"))
 
     ################################################################################################
     # the main / model entry page
