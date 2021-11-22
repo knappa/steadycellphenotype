@@ -11,7 +11,10 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 PRIME = 3
-MATHML_SANITY = True
+# When MATHML_SANITY is `True`, allows the use of the <rem/> function. When `False`, this function
+# is emulated. To conform to the SBML specification, we have to set sanity to false.
+# (Tell me how you _really_ feel...)
+MATHML_SANITY = False
 
 ExpressionOrInt = Union[int, "Expression"]
 
@@ -91,6 +94,12 @@ def wrap_with_modulus_inner_mathml(
     ----------
     expression: Tag
         The expression to wrap.
+    base: int
+        The base for the modulus.
+    sane: bool
+        Set sane to False to conform to the SBML subset of MathML. True allows a broader range
+        of functions. e.g. <rem/>, the remainder
+
 
     Returns
     -------

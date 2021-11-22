@@ -118,21 +118,20 @@ def create_app(test_config=None):
         # get the variable list and right hand sides
         model_text: str = session["model_text"]
 
-        variables, update_fn, equation_system = process_model_text(
+        variables, update_fn, submitted_equation_system = process_model_text(
             model_text, dict(), dict()
         )
 
         if use_text_format:
-            response = make_response(str(equation_system))
-            response.headers['Content-Type'] = 'text/plain'
+            response = make_response(str(submitted_equation_system))
+            response.headers["Content-Type"] = "text/plain"
             return response
 
         if use_sbml_qual_format:
-            sbml_qual: BeautifulSoup = equation_system.as_sbml_qual()
+            sbml_qual: BeautifulSoup = submitted_equation_system.as_sbml_qual()
             response = make_response(str(sbml_qual.prettify()))
-            response.headers['Content-Type'] = 'application/xml'
+            response.headers["Content-Type"] = "application/xml"
             return response
-
 
         return make_response(error_report("Unknown Error"))
 
