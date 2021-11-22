@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from enum import Enum
 from itertools import product
 from typing import Dict, List, Set, Tuple, Union
@@ -10,6 +11,7 @@ from bs4 import BeautifulSoup
 from bs4.element import Tag
 
 PRIME = 3
+MATHML_SANITY = True
 
 ExpressionOrInt = Union[int, "Expression"]
 
@@ -55,6 +57,15 @@ def inner_mathml_variable(var_name: str) -> Tag:
     return var_tag
 
 
+def function_inner_mathml(function_name: str, operands: List[Tag]) -> Tag:
+    # Note: up to you to do any copying of the operands that is needed
+    top_tag = Tag(name="apply", is_xml=True)
+    top_tag.append(Tag(name=function_name, is_xml=True, can_be_empty_element=True))
+    for operand in operands:
+        top_tag.append(operand)
+    return top_tag
+
+
 def single_var_to_power_inner_mathml(var_name: str, power: int) -> Tag:
     """Handle var^power"""
     if power == 0:
@@ -62,11 +73,55 @@ def single_var_to_power_inner_mathml(var_name: str, power: int) -> Tag:
     elif power == 1:
         return inner_mathml_variable(var_name)
     else:
-        top_tag = Tag(name="apply", is_xml=True)
-        top_tag.append(Tag(name="power", is_xml=True, can_be_empty_element=True))
-        top_tag.append(inner_mathml_variable(var_name))
-        top_tag.append(inner_mathml_constant(power))
-        return top_tag
+        return function_inner_mathml(
+            "power", [inner_mathml_variable(var_name), inner_mathml_constant(power)]
+        )
+
+
+def wrap_with_modulus_inner_mathml(
+    expression: Tag, base: int, sane: bool = False
+) -> Tag:
+    """
+    Wrap some inner mathml with a modulus operation.
+
+    SBML does not support the <rem/> ("remainder") tag, which is a pain. So we have a sanity flag,
+    `sane`, turned off by default for compatibility, which turns the simpler expression on.
+
+    Parameters
+    ----------
+    expression: Tag
+        The expression to wrap.
+
+    Returns
+    -------
+    Tag
+        Wrapped tag
+    """
+    if sane:
+        return function_inner_mathml("rem", [expression, inner_mathml_constant(base)])
+    else:
+        # a mod b = a - b * floor(a/b)
+        return function_inner_mathml(
+            "minus",
+            [
+                expression,
+                function_inner_mathml(
+                    "times",
+                    [
+                        inner_mathml_constant(base),
+                        function_inner_mathml(
+                            "floor",
+                            [
+                                function_inner_mathml(
+                                    "divide",
+                                    [copy(expression), inner_mathml_constant(base)],
+                                )
+                            ],
+                        ),
+                    ],
+                ),
+            ],
+        )
 
 
 ####################################################################################################
@@ -165,10 +220,16 @@ class Expression(object):
         -------
         BeautifulSoup
         """
-        soup = BeautifulSoup(
-            '<math xmlns="http://www.w3.org/1998/Math/MathML"></math>', "html.parser"
+        soup = BeautifulSoup(features="xml")
+        mathml = soup.new_tag(
+            "math", attrs={"xmlns": "http://www.w3.org/1998/Math/MathML"}
         )
-        soup.findChild("math").append(self._make_inner_mathml())
+        soup.append(mathml)
+        mathml.append(
+            wrap_with_modulus_inner_mathml(
+                self._make_inner_mathml(), base=PRIME, sane=MATHML_SANITY
+            )
+        )
 
         return soup
 
@@ -188,12 +249,18 @@ class Expression(object):
         apply_tag = Tag(name="apply", is_xml=True)
         apply_tag.append(Tag(name="eq", is_xml=True, can_be_empty_element=True))
         apply_tag.append(inner_mathml_constant(level))
-        apply_tag.append(self._make_inner_mathml())
-
-        soup = BeautifulSoup(
-            '<math xmlns="http://www.w3.org/1998/Math/MathML"></math>', "html.parser"
+        apply_tag.append(
+            wrap_with_modulus_inner_mathml(
+                self._make_inner_mathml(), base=PRIME, sane=MATHML_SANITY
+            )
         )
-        soup.findChild("math").append(apply_tag)
+
+        soup = BeautifulSoup(features="xml")
+        mathml = soup.new_tag(
+            "math", attrs={"xmlns": "http://www.w3.org/1998/Math/MathML"}
+        )
+        soup.append(mathml)
+        mathml.append(apply_tag)
 
         return soup
 
@@ -571,12 +638,22 @@ class Function(Expression):
         if self._function_name in mathml_function_strings:
             apply_tag.append(mathml_function_strings[self._function_name])
             for expression in self._expression_list:
-                apply_tag.append(expression._make_inner_mathml())
+                apply_tag.append(
+                    wrap_with_modulus_inner_mathml(
+                        expression._make_inner_mathml(), base=PRIME, sane=MATHML_SANITY
+                    )
+                )
         elif self._function_name == "NOT":
             # rewrite as (prime-1)-expression
             apply_tag.append(Tag(name="minus", is_xml=True, can_be_empty_element=True))
             apply_tag.append(inner_mathml_constant(PRIME - 1))
-            apply_tag.append(self._expression_list[0]._make_inner_mathml())
+            apply_tag.append(
+                wrap_with_modulus_inner_mathml(
+                    self._expression_list[0]._make_inner_mathml(),
+                    base=PRIME,
+                    sane=MATHML_SANITY,
+                )
+            )
         else:
             raise NotImplementedError(
                 "_inner_mathml() unimplemented in " + str(type(self))
@@ -826,8 +903,22 @@ class BinaryOperation(Expression):
 
         if self._relation_name in mathml_relations:
             apply_tag.append(mathml_relations[self._relation_name])
-            apply_tag.append(self._left_expression._make_inner_mathml())
-            apply_tag.append(self._right_expression._make_inner_mathml())
+
+            if (
+                isinstance(self._left_expression, Expression)
+                and not self._left_expression.is_constant()
+            ):
+                apply_tag.append(self._left_expression._make_inner_mathml())
+            else:
+                apply_tag.append(inner_mathml_constant(int(self._left_expression)))
+
+            if (
+                isinstance(self._right_expression, Expression)
+                and not self._right_expression.is_constant()
+            ):
+                apply_tag.append(self._right_expression._make_inner_mathml())
+            else:
+                apply_tag.append(inner_mathml_constant(int(self._right_expression)))
         else:
             raise NotImplementedError(
                 f"_inner_mathml() unimplemented for {self._relation_name} in {type(self)}"
@@ -960,7 +1051,11 @@ class UnaryRelation(Expression):
 
         if self._relation_name in mathml_relations:
             apply_tag.append(mathml_relations[self._relation_name])
-            apply_tag.append(self._expr._make_inner_mathml())
+
+            if isinstance(self._expr, Expression) and not self._expr.is_constant():
+                apply_tag.append(self._expr._make_inner_mathml())
+            else:
+                apply_tag.append(inner_mathml_constant(int(self._expr)))
         else:
             raise NotImplementedError(
                 f"_inner_mathml() unimplemented for {self._relation_name} in {type(self)}"
@@ -978,7 +1073,7 @@ class UnaryRelation(Expression):
 ####################################################################################################
 
 
-@attrs(init=False, cmp=False)
+@attrs(init=False, cmp=False, repr=False, str=False)
 class Monomial(Expression):
     """A class to encapsulate monomials reduced by x^3-x==0 for all variables x"""
 
@@ -1322,7 +1417,7 @@ class Monomial(Expression):
 ####################################################################################################
 
 
-@attrs(init=False)
+@attrs(init=False, repr=False, str=False)
 class Mod3Poly(Expression):
     """a sparse polynomial class"""
 
@@ -1596,6 +1691,8 @@ class Mod3Poly(Expression):
             return inner_mathml_constant(0)
         elif num_terms == 1:
             monomial, coefficient = list(self.coeff_dict.items())[0]
+            if monomial.is_constant():
+                return inner_mathml_constant(coefficient)
             apply_tag = Tag(name="apply", is_xml=True)
             apply_tag.append(Tag(name="times", is_xml=True, can_be_empty_element=True))
             apply_tag.append(inner_mathml_constant(coefficient))
@@ -1613,6 +1710,8 @@ class Mod3Poly(Expression):
                 elif coefficient == 1:
                     # noinspection PyProtectedMember
                     top_apply_tag.append(monomial._make_inner_mathml())
+                elif monomial.is_constant():
+                    top_apply_tag.append(inner_mathml_constant(coefficient))
                 else:
                     inner_apply_tag = Tag(name="apply", is_xml=True)
                     inner_apply_tag.append(

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-# noinspection PyUnresolvedReferences
 import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
+# noinspection PyUnresolvedReferences
+from math import floor
 from typing import Callable, Optional, Sequence
 
 # noinspection PyProtectedMember
@@ -411,7 +412,7 @@ def parse_mathml_to_function(
             unary_operations = {
                 "not": operator.not_,
                 "minus": operator.neg,
-                "rem": operator.mod,
+                "floor": lambda x: floor(x),
             }
             if operation in unary_operations and len(operand_functions) == 1:
                 operator_function = unary_operations[operation]
@@ -454,7 +455,9 @@ def parse_mathml_to_function(
                 "geq": operator.ge,
                 "leq": operator.le,
                 "minus": operator.sub,
+                "divide": operator.truediv,
                 "power": operator.pow,
+                "rem": operator.mod,
             }
             if operation in binary_operations and len(operand_functions) == 2:
                 operator_function = binary_operations[operation]
@@ -523,7 +526,7 @@ def parse_sbml_qual_function(
 ####################################################################################################
 
 
-@attrs(init=False, slots=True)
+@attrs(init=False, slots=True, repr=False, str=False)
 class EquationSystem(object):
     _formula_symbol_table: List[str] = attrib()
     _equation_dict: Dict[str, ExpressionOrInt] = attrib()
@@ -577,7 +580,7 @@ class EquationSystem(object):
         Parameters
         ----------
         xml_string: str
-            string representation of
+            SBML-qual string representation of equation system
 
         Returns
         -------
