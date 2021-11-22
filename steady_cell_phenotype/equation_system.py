@@ -1,20 +1,22 @@
 from __future__ import annotations
 
-# noinspection PyUnresolvedReferences
 import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
-from typing import Callable, List, Optional, Sequence, Tuple
+# noinspection PyUnresolvedReferences
+from math import floor
+from typing import Callable, Optional, Sequence
 
-from attr import attrib, attrs
-from bs4 import BeautifulSoup
-from bs4.element import ResultSet, Tag
+# noinspection PyProtectedMember
+from bs4 import ResultSet
 
 from steady_cell_phenotype.poly import *
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
+
+DEFAULT_COMPARTMENT_NAME = "compartment1"
 
 try:
     # noinspection PyUnresolvedReferences
@@ -23,8 +25,6 @@ try:
     PARALLEL = True
 except ImportError:
     PARALLEL = False
-
-ExpressionOrInt = Union[int, Expression]
 
 
 ####################################################################################################
@@ -412,7 +412,7 @@ def parse_mathml_to_function(
             unary_operations = {
                 "not": operator.not_,
                 "minus": operator.neg,
-                "rem": operator.mod,
+                "floor": lambda x: floor(x),
             }
             if operation in unary_operations and len(operand_functions) == 1:
                 operator_function = unary_operations[operation]
@@ -455,7 +455,9 @@ def parse_mathml_to_function(
                 "geq": operator.ge,
                 "leq": operator.le,
                 "minus": operator.sub,
+                "divide": operator.truediv,
                 "power": operator.pow,
+                "rem": operator.mod,
             }
             if operation in binary_operations and len(operand_functions) == 2:
                 operator_function = binary_operations[operation]
@@ -524,7 +526,7 @@ def parse_sbml_qual_function(
 ####################################################################################################
 
 
-@attrs(init=False, slots=True)
+@attrs(init=False, slots=True, repr=False, str=False)
 class EquationSystem(object):
     _formula_symbol_table: List[str] = attrib()
     _equation_dict: Dict[str, ExpressionOrInt] = attrib()
@@ -578,7 +580,7 @@ class EquationSystem(object):
         Parameters
         ----------
         xml_string: str
-            string representation of
+            SBML-qual string representation of equation system
 
         Returns
         -------
@@ -777,7 +779,7 @@ class EquationSystem(object):
     #             for var in self._equation_dict}
 
     def as_numpy(self) -> Tuple[Tuple[str], Callable]:
-        variables = tuple(self._equation_dict.keys())
+        variables: Tuple[str] = tuple(self._equation_dict.keys())
 
         functions = [
             self._equation_dict[var].as_numpy_str(variables)
@@ -793,7 +795,7 @@ class EquationSystem(object):
                 "], dtype=np.int64)",
             ]
         )
-        # print(function_str)
+
         # See https://docs.python.org/3/library/functions.html#exec
         locals_dict = dict()
         exec(
@@ -801,6 +803,138 @@ class EquationSystem(object):
         )  # now there is a 'update_function' defined
         update_function = locals_dict["update_function"]
         return variables, update_function
+
+    ################################################################################################
+
+    def as_sbml_qual(self) -> BeautifulSoup:
+        soup = BeautifulSoup(features="xml")
+
+        sbml_top_tag: Tag = soup.new_tag(
+            "sbml",
+            attrs={
+                "xmlns": "http://www.sbml.org/sbml/level3/version1/core",
+                "level": "3",
+                "version": "1",
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1",
+                "qual:required": "true",
+            },
+        )
+        soup.append(sbml_top_tag)
+
+        model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype model"})
+        sbml_top_tag.append(model)
+
+        species_list = soup.new_tag(
+            "qual:listOfQualitativeSpecies",
+            attrs={
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
+            },
+        )
+        model.append(species_list)
+
+        transitions_list = soup.new_tag(
+            "qual:listOfTransitions",
+            attrs={
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
+            },
+        )
+        model.append(transitions_list)
+
+        # add species to species list, and transition functions to their own list
+        for symbol in self._formula_symbol_table:
+            update_formula: ExpressionOrInt = self._equation_dict[symbol]
+
+            if (
+                isinstance(update_formula, Expression)
+                and not update_formula.is_constant()
+            ):
+                # add to species list
+                symbol_tag = soup.new_tag(
+                    "qual:qualitativeSpecies",
+                    attrs={
+                        "qual:maxLevel": 2,
+                        "qual:compartment": DEFAULT_COMPARTMENT_NAME,
+                        "qual:id": symbol,
+                    },
+                )
+                species_list.append(symbol_tag)
+
+                transition_tag = soup.new_tag(
+                    "qual:transition", attrs={"qual:id": "transition_" + symbol}
+                )
+                transitions_list.append(transition_tag)
+
+                input_list = soup.new_tag("qual:listOfInputs")
+                transition_tag.append(input_list)
+                for idx, variable in enumerate(update_formula.get_variable_set()):
+                    input_list.append(
+                        soup.new_tag(
+                            "qual:input",
+                            attrs={
+                                "qual:qualitativeSpecies": variable,
+                                "qual:transitionEffect": "none",
+                                "qual:id": f"transition_{symbol}_input_{idx}",
+                            },
+                        )
+                    )
+
+                output_list = soup.new_tag("qual:listOfOutputs")
+                transition_tag.append(output_list)
+                output_list.append(
+                    soup.new_tag(
+                        "qual:output",
+                        attrs={
+                            "qual:qualitativeSpecies": symbol,
+                            "qual:transitionEffect": "assignmentLevel",
+                            "qual:id": f"transition_{symbol}_output",
+                        },
+                    )
+                )
+
+                function_terms = soup.new_tag("qual:listOfFunctionTerms")
+                transition_tag.append(function_terms)
+
+                function_terms.append(
+                    soup.new_tag("qual:defaultTerm", attrs={"qual:resultLevel": 0})
+                )
+
+                level1_function_term = soup.new_tag(
+                    "qual:functionTerm", attrs={"qual:resultLevel": 1}
+                )
+                level1_function_term.append(update_formula.as_sbml_qual_relation(1))
+                function_terms.append(level1_function_term)
+
+                level2_function_term = soup.new_tag(
+                    "qual:functionTerm", attrs={"qual:resultLevel": 2}
+                )
+                level2_function_term.append(update_formula.as_sbml_qual_relation(2))
+                function_terms.append(level2_function_term)
+
+            else:
+                # set constant and initial level flags
+                update_formula = int(update_formula)
+                symbol_tag = soup.new_tag(
+                    "qual:qualitativeSpecies",
+                    attrs={
+                        "qual:maxLevel": 2,
+                        "qual:compartment": DEFAULT_COMPARTMENT_NAME,
+                        "qual:id": symbol,
+                        "qual:constant": "true",
+                        "qual:initialLevel": str(update_formula),
+                    },
+                )
+                species_list.append(symbol_tag)
+
+        compartments_list = soup.new_tag("listOfCompartments")
+        model.append(compartments_list)
+        compartments_list.append(
+            soup.new_tag(
+                "compartment",
+                attrs={"constant": "true", "id": DEFAULT_COMPARTMENT_NAME},
+            )
+        )
+
+        return soup
 
     ################################################################################################
 
