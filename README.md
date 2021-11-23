@@ -23,7 +23,7 @@ from the `steadycellphenotype` directory. Commonly, such as on Mac or Linux-base
 python3 -m pip install -r requirements.txt
 ```
 
-Then, on mac or linux, the site can then be started by 
+Then, on Mac or linux, the site can then be started by 
 ```
 ./start_scp.sh
 ```
@@ -48,7 +48,7 @@ Instructions on obtaining Macaulay2 are [here](http://www2.macaulay2.com/Macaula
 
 ## Using a virtual environment
 
-If you encounter compatibility errors between various python and package versions on your computer, it may be useful to create a virtual environment with project-specific versions. (e.g. as of this writing there are issues with the current versions of numba and python 3.9 on MacOS.) To create a virtual environment, first find the desired version of python on your machine. (We assume 3.8 below.) _Hint_: On MacOS and Linux, we can use
+If you encounter compatibility errors between various python and package versions on your computer, it may be useful to create a virtual environment with project-specific versions. (e.g. as of this writing there are issues with the current versions of numba and python 3.9 on macOS.) To create a virtual environment, first find the desired version of python on your machine. (We assume 3.8 below.) _Hint_: On macOS and Linux, we can use
 ```
 find / -name python3.8 2>&1 | grep -v "Permission denied"
 ```
@@ -65,14 +65,24 @@ Now run
 python3 -m pip install -e .
 ```
 
+# Command line tool, `scp_converter.py`
 
-# `scp_converter.py` command-line usage
+In addition to the browser interface, SteadyCellPhenotype provides a command line tool: `scp_converter.py` for advanced users. This tool allows the user to perform various transformations to a MAX/MIN/NOT/polynomial model, including:
+* generation of a pure-polynomial model, (i.e. conversion of MAX/MIN/NOT formulae to the corresponding polynomial)
+* conversion of some or all formulae to the corresponding continuous version, 
+* generation of a "self-power" of the system, i.e. $F^n = \underbrace{F \circ \cdots \circ F}_{n}$ suitable for 
+* generation of several C language programs derived from the model:
+  * a simulator which runs the system on a random sample of initial conditions, searching for attractors
+  * a simulator which does a complete state space search of the system, searching for attractors
+  * a simulator which creates a graph representation of the update function on state space
+  
+  Each of these generated programs can be compiled using recent versions of `gcc` and require the header files (`*.h`) included in the `steady_cell_phenotype` directory. Output is in JSON format.
 
-Running `scp_converter.py --help` displays information about command line options 
+Commands line options for `scp_converter.py` are shown by running `scp_converter.py --help` which displays:
 
 ```
-usage: scp_converter.py [-h] [-i INPUTFILE] [-o OUTPUTFILE] [-n] [-no-polys] [-sim] [-graph] [-init-val INIT_VAL [INIT_VAL ...]] [--count COUNT] [-c]
-                  [-comit CONTINUOUS_OMIT [CONTINUOUS_OMIT ...]] [-power SELF_POWER]
+usage: scp_converter.py [-h] [-i INPUTFILE] [-o OUTPUTFILE] [-n] [-no-polys] [-sim] [-graph] [-complete_search] [-init-val INIT_VAL [INIT_VAL ...]]
+                        [--count COUNT] [-c] [-comit CONTINUOUS_OMIT [CONTINUOUS_OMIT ...]] [-power SELF_POWER]
 
 Converter from MAX/MIN/NOT formulae to either low-degree polynomials over F_3 or a C-language simulator
 
@@ -87,6 +97,7 @@ optional arguments:
   -no-polys             do not output polynomials, used by default when output is by simulator
   -sim                  output C-language simulator program
   -graph                use the graph-creation simulator
+  -complete_search      completely search the state-space
   -init-val INIT_VAL [INIT_VAL ...]
                         for simulators, fix initial values got some variables Ex: -init-val LIP 1
   --count COUNT         number of random points tried by the simulator, default 1,000,000. Ignored if the -sim flag is not used
@@ -94,7 +105,7 @@ optional arguments:
   -comit CONTINUOUS_OMIT [CONTINUOUS_OMIT ...], --continuous-omit CONTINUOUS_OMIT [CONTINUOUS_OMIT ...]
                         list of variables to _not_ apply continuity operation to
   -power SELF_POWER, --self-power SELF_POWER
-                        gets polynomials for a power of the system. i.e. self-composition, power-1 times (default: 1) ignored for simulator Warning: This can take a long
-                        time!
+                        gets polynomials for a power of the system. i.e. self-composition, power-1 times (default: 1) ignored for simulator Warning: This can
+                        take a long time!
 ```
 
