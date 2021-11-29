@@ -641,7 +641,7 @@ class Function(Expression):
 
         mathml_function_strings = {
             "MAX": Tag(name="max", is_xml=True, can_be_empty_element=True),
-            "MIN": Tag(name="max", is_xml=True, can_be_empty_element=True),
+            "MIN": Tag(name="min", is_xml=True, can_be_empty_element=True),
         }
 
         if self._function_name in mathml_function_strings:
