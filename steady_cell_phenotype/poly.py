@@ -134,7 +134,7 @@ def wrap_with_modulus_inner_mathml(
 
 
 ####################################################################################################
-# monomial and sparse polynomial classes. These should be faster than the sympy versions due to
+# monomial and sparse polynomial classes. These are faster than the sympy versions due to
 # their reduced scope.
 ####################################################################################################
 
