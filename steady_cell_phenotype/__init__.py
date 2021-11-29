@@ -152,15 +152,16 @@ def create_app(test_config=None):
                     model_file.save(filename)
                     with open(filename, "r") as file:
                         model_from_file = file.read().strip()
-                    try:
-                        from steady_cell_phenotype.equation_system import \
-                            EquationSystem
 
+                    from steady_cell_phenotype.equation_system import EquationSystem
+                    sbml_model = None
+                    try:
                         sbml_model = EquationSystem.from_sbml_qual(model_from_file)
-                        if sbml_model is not None:
-                            model_from_file = str(sbml_model)
                     except ParseError:
                         pass
+                    # SBML parse returns a string when it hits an error
+                    if sbml_model is not None and not isinstance(sbml_model, str):
+                        model_from_file = str(sbml_model)
 
         if session.new or "model_text" not in session:
             session.permanent = True
