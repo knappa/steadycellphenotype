@@ -821,7 +821,8 @@ class EquationSystem(object):
         )
         soup.append(sbml_top_tag)
 
-        model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype model"})
+        # not sure if this is part of the spec, but GINsim doesn't work with spaces in the model id
+        model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype_model"})
         sbml_top_tag.append(model)
 
         species_list = soup.new_tag(
