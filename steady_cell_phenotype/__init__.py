@@ -153,7 +153,9 @@ def create_app(test_config=None):
                     with open(filename, "r") as file:
                         model_from_file = file.read().strip()
 
-                    from steady_cell_phenotype.equation_system import EquationSystem
+                    from steady_cell_phenotype.equation_system import \
+                        EquationSystem
+
                     sbml_model = None
                     try:
                         sbml_model = EquationSystem.from_sbml_qual(model_from_file)

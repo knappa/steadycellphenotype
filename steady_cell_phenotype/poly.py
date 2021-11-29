@@ -1082,7 +1082,7 @@ class UnaryRelation(Expression):
 ####################################################################################################
 
 
-@attrs(init=False, cmp=False, repr=False, str=False)
+@attrs(init=False, eq=False, repr=False, str=False, order=False)
 class Monomial(Expression):
     """A class to encapsulate monomials reduced by x^3-x==0 for all variables x"""
 
@@ -1391,13 +1391,11 @@ class Monomial(Expression):
             "("
             + "*".join(
                 [
-                    "1".format(variables.index(var), self._power_dict[var])
+                    "1"
                     if self._power_dict[var] == 0
-                    else "state[{0}]".format(variables.index(var))
+                    else f"state[{variables.index(var)}]"
                     if self._power_dict[var] == 1
-                    else "(state[{0}]**{1})".format(
-                        variables.index(var), self._power_dict[var]
-                    )
+                    else f"(state[{variables.index(var)}]**{self._power_dict[var]})"
                     for var in self._power_dict
                 ]
             )

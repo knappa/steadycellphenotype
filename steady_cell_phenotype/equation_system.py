@@ -4,14 +4,17 @@ import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
-# noinspection PyUnresolvedReferences
+from itertools import product
 from math import floor
-from typing import Callable, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
+from attr import attrib, attrs
 # noinspection PyProtectedMember
-from bs4 import ResultSet
+from bs4 import BeautifulSoup, ResultSet, Tag
 
-from steady_cell_phenotype.poly import *
+from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
+                                        Monomial)
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
@@ -846,6 +849,7 @@ class EquationSystem(object):
                         "qual:maxLevel": 2,
                         "qual:compartment": DEFAULT_COMPARTMENT_NAME,
                         "qual:id": symbol,
+                        "qual:constant": "false",
                     },
                 )
                 species_list.append(symbol_tag)

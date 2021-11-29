@@ -11,7 +11,7 @@ import os
 import sys
 
 from steady_cell_phenotype._util import get_text_resource
-from steady_cell_phenotype.equation_system import *
+from steady_cell_phenotype.equation_system import EquationSystem
 
 ####################################################################################################
 

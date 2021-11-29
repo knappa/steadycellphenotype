@@ -2,15 +2,20 @@ import json
 import math
 import tempfile
 from enum import IntEnum
+from itertools import product
 from pathlib import Path
-from typing import Set
+from typing import Callable, Dict, List, Set, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
-from flask import Markup, Response, make_response
+import numpy as np
+from flask import Markup, Response, make_response, render_template
 
 from steady_cell_phenotype._graph_layout import graph_layout
-from steady_cell_phenotype._util import *
+from steady_cell_phenotype._util import (MAX_SUPPORTED_VARIABLE_STATES,
+                                         HashableNdArray, error_report,
+                                         get_trajectory, process_model_text)
+from steady_cell_phenotype.equation_system import EquationSystem
 
 matplotlib.use("agg")
 
@@ -79,7 +84,7 @@ def add_nearby_states(init_states: List[np.ndarray]) -> List[np.ndarray]:
     num_vars: int = init_states[0].shape[0]
 
     # add all Hamming distance `dist` states from the initial states
-    for state, idx, val in itertools.product(init_states, range(num_vars), range(3)):
+    for state, idx, val in product(init_states, range(num_vars), range(3)):
         if abs(state[idx] - val) <= 1:
             new_state = state.copy()
             new_state[idx] = val
