@@ -825,20 +825,10 @@ class EquationSystem(object):
         model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype_model"})
         sbml_top_tag.append(model)
 
-        species_list = soup.new_tag(
-            "qual:listOfQualitativeSpecies",
-            attrs={
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
-            },
-        )
+        species_list = soup.new_tag("qual:listOfQualitativeSpecies")
         model.append(species_list)
 
-        transitions_list = soup.new_tag(
-            "qual:listOfTransitions",
-            attrs={
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
-            },
-        )
+        transitions_list = soup.new_tag("qual:listOfTransitions")
         model.append(transitions_list)
 
         # add species to species list, and transition functions to their own list
