@@ -904,7 +904,7 @@ class BinaryOperation(Expression):
         apply_tag = Tag(name="apply", is_xml=True)
 
         mathml_relations = {
-            "PLUS": Tag(name="add", is_xml=True, can_be_empty_element=True),
+            "PLUS": Tag(name="plus", is_xml=True, can_be_empty_element=True),
             "MINUS": Tag(name="minus", is_xml=True, can_be_empty_element=True),
             "TIMES": Tag(name="times", is_xml=True, can_be_empty_element=True),
             "EXP": Tag(name="power", is_xml=True, can_be_empty_element=True),

@@ -815,10 +815,10 @@ class EquationSystem(object):
         sbml_top_tag: Tag = soup.new_tag(
             "sbml",
             attrs={
-                "xmlns": "http://www.sbml.org/sbml/level3/version1/core",
+                "xmlns": "http://www.sbml.org/sbml/level3/version2/core",
                 "level": "3",
-                "version": "1",
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1",
+                "version": "2",
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version2/qual/version1",
                 "qual:required": "true",
             },
         )
