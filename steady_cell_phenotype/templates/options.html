@@ -58,6 +58,46 @@
     }
   }
 
+  // a list of variable present in the model
+  const model_variables = [{% for variable in variables %}"{{ variable }}", {% endfor %}]
+
+  function get_config_json() {
+
+    const config = {status: "success", config: {}};
+    if (document.getElementById('cycles').checked) {
+        config.config['type'] = 'cycles';
+        config.config['num_samples'] = document.getElementById('num_samples').value;
+    } else if (document.getElementById('fixed_points').checked) {
+        config.config['type'] = 'fixed_points';
+    } else if (document.getElementById('trace').checked) {
+        config.config['type'] = 'trace';
+        config.config['trace-nearby'] = document.getElementById('trace-nearby').checked;
+    } else {
+        return {status: "error"};
+    }
+
+    const variable_json = {};
+    model_variables.forEach( variable => {
+        variable_json[variable] = {
+            visualized: document.getElementById(variable + '-visualized').checked,
+            continuous: document.getElementById(variable + '-continuous').checked,
+            KO: document.getElementById(variable + '-KO').value,
+            init: document.getElementById(variable + '-init').value,
+        };
+    });
+    config['variables'] = variable_json;
+
+    return config;
+  }
+
+function download_config() {
+    const configString = 'data:text/json;charset=utf-8,' +
+                            encodeURIComponent(JSON.stringify(get_config_json()));
+    const anchor = document.createElement('a');
+    anchor.setAttribute('href', configString );
+    anchor.setAttribute('download', 'config.json');
+    anchor.click();
+}
 
 </script>
 {% endblock %}
@@ -67,6 +107,97 @@
 
 <center>
     <div class="w3-container w3-margin w3-left-align" style="width:80%">
+        <form id="config-upload">
+            <button id="config-file-select"
+                    class="w3-btn w3-us-red w3-margin-top w3-margin-bottom w3-round">
+                Load a configuration
+            </button>
+            <label class="w3-btn w3-us-red w3-margin-top w3-margin-bottom w3-round"
+                       for="config-file">
+                <input type="file"
+                       id="config-file"
+                       accept="application/json,.json">
+            </label>
+        </form>
+        <script>
+            let form = document.getElementById('config-upload')
+            let file = document.getElementById('config-file')
+            form.addEventListener('submit', handleConfigUpload);
+
+            function handleConfigUpload(event) {
+                event.preventDefault(); // Stop the form from reloading the page
+                if (!file.value.length) return; // If there's no file, do nothing
+                let reader = new FileReader();
+                reader.onload = updateForm; // callback
+                reader.readAsText(file.files[0]);
+            }
+
+            function updateForm(event) {
+                try {
+                    const config = JSON.parse(event.target.result);
+
+                    if (!config['status'] || config['status'] !== 'success') {
+                        console.log("Error in config", config);
+                        return;
+                    }
+
+                    if (!!config['config'] && !!config.config['type']) {
+                        if (config.config['type'] === 'cycles') {
+                            document.getElementById('cycles').checked = true;
+                            trace_nearby_off();
+                            hide_init_column();
+                            if (!!config.config['num_samples']) {
+                                document.getElementById('num_samples').value =
+                                    config.config['num_samples'];
+                            }
+                        } else if (config.config['type'] === 'fixed_points') {
+                            document.getElementById('fixed_points').checked = true;
+                            trace_nearby_off();
+                            hide_init_column();
+                        } else if (config.config['type'] === 'trace') {
+                            document.getElementById('trace').checked = true;
+                            trace_nearby_on();
+                            show_init_column();
+                            document.getElementById('trace-nearby').checked =
+                                !!config.config['trace-nearby'];
+                        } else {
+                            console.log("Config had unknown type: " + config['type']);
+                        }
+                    } else {
+                        console.log("Config was missing a simulation type.");
+                        console.log(config);
+                    }
+
+                    if (!!config['variables']) {
+                        model_variables.forEach( variable => {
+                            if (!!config.variables[variable]) {
+                                if (!!config.variables[variable]['visualized']) {
+                                    document.getElementById(variable + '-visualized').checked =
+                                        config.variables[variable]['visualized'];
+                                }
+                                if (!!config.variables[variable]['continuous']) {
+                                    document.getElementById(variable + '-continuous').checked =
+                                        config.variables[variable]['continuous'];
+                                }
+                                if (!!config.variables[variable]['KO']) {
+                                    document.getElementById(variable + '-KO').value =
+                                        config.variables[variable]['KO'];
+                                }
+                                if (!!config.variables[variable]['init']) {
+                                    document.getElementById(variable + '-init').value =
+                                        config.variables[variable]['init'];
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.error(e instanceof SyntaxError);
+                    alert("There was a problem with this configuration file!");
+                    return;
+                }
+
+            }
+        </script>
         <form class="w3-container" method="post" action="/compute/">
             <div class="w3-row-padding">
                 <table id='config-table' class="w3-table-all w3-margin w3-hoverable">
@@ -83,18 +214,22 @@
                         <td>
                             <input type="checkbox"
                                    name="{{variable}}-visualized"
+                                   id="{{variable}}-visualized"
                                    class="visualization"
                                    value="{{variable}}">
                         </td>
                         <td>
                             <input type="checkbox"
                                    name="{{variable}}-continuous"
+                                   id="{{variable}}-continuous"
                                    class="continuity"
                                    value="{{variable}}"
                                    onclick="unset('{{variable}}')">
                         </td>
                         <td>
-                            <select name="{{variable}}-KO" onchange="uncheck('{{variable}}')">
+                            <select name="{{variable}}-KO"
+                                    id="{{variable}}-KO"
+                                    onchange="uncheck('{{variable}}')">
                                 <option selected value="None"></option>
                                 <option value="0">0</option>
                                 <option value="1">1</option>
@@ -102,7 +237,9 @@
                             </select>
                         </td>
                         <td>
-                            <select class="init-state-select" name="{{variable}}-init">
+                            <select name="{{variable}}-init"
+                                    id="{{variable}}-init"
+                                    class="init-state-select">
                                 <option selected disabled value="None"></option>
                                 <option value="0">0</option>
                                 <option value="1">1</option>
@@ -116,10 +253,14 @@
                 <div class="w3-cell-row w3-us-blue w3-margin">
                     <div class="w3-container w3-cell w3-mobile">
                         <div class="w3-container">
-                            <input type="radio" class="w3-radio w3-margin" id="cycles" name="action" value="cycles"
+                            <input type="radio"
+                                   class="w3-radio w3-margin"
+                                   name="action"
+                                   id="cycles"
+                                   value="cycles"
                                    onclick="hide_init_column(); trace_nearby_off()"
                                    checked>
-                            <label for="cycles">Sample fixed points and cycles <select name="num_samples">
+                            <label for="cycles">Sample fixed points and cycles <select name="num_samples" id="num_samples">
                                 <option selected value="1000">1,000</option>
                                 <option value="10000">10,000</option>
                                 <option value="100000">100,000</option>
@@ -131,32 +272,48 @@
                         </div>
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
-                        <input type="radio" class="w3-radio w3-margin" id="fixed_points" name="action"
-                               onclick="hide_init_column(); trace_nearby_off()"
-                               value="fixed_points">
+                        <input type="radio"
+                               class="w3-radio w3-margin"
+                               id="fixed_points"
+                               value="fixed_points"
+                               name="action"
+                               onclick="hide_init_column(); trace_nearby_off()">
                         <label for="fixed_points">Find all fixed points</label>
                     </div>
                     <div class="w3-container w3-cell w3-mobile">
-			<div class="w3-container w3-mobile">
-			  <input type="radio" class="w3-radio w3-margin" id="trace" name="action"
-				 onclick="show_init_column(); trace_nearby_on()"
-				 value="trace">
-                          <label for="trace" >Trace state(s)</label>
-			</div>
-			<div class="w3-container w3-mobile">
-			  <input type="checkbox" class="w3-check" id="trace-nearby" name="trace-nearby-checkbox" value="Yes" disabled>
-			  <label for="trace-nearby">Include nearby states</label>
-			</div>
+                        <div class="w3-container w3-mobile">
+                            <input type="radio"
+                                   class="w3-radio w3-margin"
+                                   id="trace"
+                                   name="action"
+                                   onclick="show_init_column(); trace_nearby_on()"
+                                   value="trace">
+                            <label for="trace" >Trace state(s)</label>
+                        </div>
+                        <div class="w3-container w3-mobile">
+                            <input type="checkbox"
+                                   class="w3-check"
+                                   id="trace-nearby"
+                                   name="trace-nearby-checkbox"
+                                   value="Yes"
+                                   disabled>
+                            <label for="trace-nearby">Include nearby states</label>
+                        </div>
                     </div>
                 </div>
                 <input class="w3-btn w3-us-red w3-margin w3-round" type="submit" value="Compute">
+                <button type="button"
+                        class="w3-btn w3-us-red w3-margin w3-round"
+                        onclick="download_config()">
+                    Download Current Config
+                </button>
             </div>
         </form>
     </div>
 </center>
 
 <script>
-    hide_init_column()
+hide_init_column()
 </script>
 
 {% endblock %}

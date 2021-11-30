@@ -4,14 +4,17 @@ import operator
 from copy import deepcopy
 from functools import partial, reduce
 from html import escape
-# noinspection PyUnresolvedReferences
+from itertools import product
 from math import floor
-from typing import Callable, Optional, Sequence
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 
+import numpy as np
+from attr import attrib, attrs
 # noinspection PyProtectedMember
-from bs4 import ResultSet
+from bs4 import BeautifulSoup, ResultSet, Tag
 
-from steady_cell_phenotype.poly import *
+from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
+                                        Monomial)
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
@@ -428,6 +431,7 @@ def parse_mathml_to_function(
                 "max": lambda a, b: max(a, b),
                 "min": lambda a, b: min(a, b),
                 "plus": operator.add,
+                "add": operator.add,
                 "times": operator.mul,
                 "and": operator.and_,
                 "or": operator.or_,
@@ -484,7 +488,7 @@ def parse_mathml_to_function(
 
 
 def parse_sbml_qual_function(
-    input_variables: List[str], function_terms: Tag
+    input_variables: List[str], function_terms: Tag, max_level: int = 2
 ) -> Callable[..., int]:
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
     if len(default_levels) != 1:
@@ -520,7 +524,7 @@ def parse_sbml_qual_function(
                 return value
         return default_level
 
-    return function_realization
+    return lambda x: min(max_level, function_realization(x))
 
 
 ####################################################################################################
@@ -604,6 +608,7 @@ class EquationSystem(object):
 
         # record their 'maxlevel', i.e. if they are boolean or ternary, or whatever.
         # We are only going to support ternary, so error out if something else is encountered
+        max_levels: Dict[str, int] = {}
         for species in species_list:
             if "qual:maxlevel" not in species.attrs:
                 return (
@@ -611,11 +616,14 @@ class EquationSystem(object):
                 )
 
             try:
-                if int(species.attrs["qual:maxlevel"]) != 2:
+                if int(species.attrs["qual:maxlevel"]) not in {1, 2}:
                     return (
                         f"Max level provided for {species.attrs['qual:id']}"
-                        f" is {species.attrs['qual:maxlevel']}, expecting 2"
+                        f" is {species.attrs['qual:maxlevel']}, expecting 1 or 2"
                     )
+                max_levels[species.attrs["qual:id"]] = int(
+                    species.attrs["qual:maxlevel"]
+                )
             except ValueError:
                 return (
                     f"Max level provided for {species.attrs['qual:id']} is"
@@ -677,7 +685,9 @@ class EquationSystem(object):
                 return "Should have exactly one list of function terms"
             try:
                 transition_function: Callable = parse_sbml_qual_function(
-                    input_variables, function_terms[0]
+                    input_variables,
+                    function_terms[0],
+                    max_level=max_levels[target_variable],
                 )
             except ParseError as e:
                 return "Could not parse functions " + str(e)
@@ -812,32 +822,23 @@ class EquationSystem(object):
         sbml_top_tag: Tag = soup.new_tag(
             "sbml",
             attrs={
-                "xmlns": "http://www.sbml.org/sbml/level3/version1/core",
+                "xmlns": "http://www.sbml.org/sbml/level3/version2/core",
                 "level": "3",
-                "version": "1",
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1",
+                "version": "2",
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version2/qual/version1",
                 "qual:required": "true",
             },
         )
         soup.append(sbml_top_tag)
 
-        model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype model"})
+        # not sure if this is part of the spec, but GINsim doesn't work with spaces in the model id
+        model = soup.new_tag("model", attrs={"id": "SteadyCellPhenotype_model"})
         sbml_top_tag.append(model)
 
-        species_list = soup.new_tag(
-            "qual:listOfQualitativeSpecies",
-            attrs={
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
-            },
-        )
+        species_list = soup.new_tag("qual:listOfQualitativeSpecies")
         model.append(species_list)
 
-        transitions_list = soup.new_tag(
-            "qual:listOfTransitions",
-            attrs={
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1"
-            },
-        )
+        transitions_list = soup.new_tag("qual:listOfTransitions")
         model.append(transitions_list)
 
         # add species to species list, and transition functions to their own list
@@ -855,6 +856,7 @@ class EquationSystem(object):
                         "qual:maxLevel": 2,
                         "qual:compartment": DEFAULT_COMPARTMENT_NAME,
                         "qual:id": symbol,
+                        "qual:constant": "false",
                     },
                 )
                 species_list.append(symbol_tag)

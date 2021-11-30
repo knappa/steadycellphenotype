@@ -1,5 +1,5 @@
 from itertools import product
-from typing import List, Tuple
+from typing import Tuple
 
 from steady_cell_phenotype.equation_system import EquationSystem
 from steady_cell_phenotype.poly import Monomial
@@ -8,6 +8,18 @@ TEST_SYSTEMS = [
     """
     A=B
     B=A
+    """,
+    """
+    A=MAX(A,B)
+    B=NOT(A)
+    """,
+    """
+    A=MIN(A,B)
+    B=NOT(A)
+    """,
+    """
+    A=MAX(A,NOT(B))
+    B=MIN(NOT(A),B)
     """,
 ]
 
