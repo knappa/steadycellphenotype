@@ -431,6 +431,7 @@ def parse_mathml_to_function(
                 "max": lambda a, b: max(a, b),
                 "min": lambda a, b: min(a, b),
                 "plus": operator.add,
+                "add": operator.add,
                 "times": operator.mul,
                 "and": operator.and_,
                 "or": operator.or_,
@@ -487,7 +488,7 @@ def parse_mathml_to_function(
 
 
 def parse_sbml_qual_function(
-    input_variables: List[str], function_terms: Tag
+    input_variables: List[str], function_terms: Tag, max_level: int = 2
 ) -> Callable[..., int]:
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
     if len(default_levels) != 1:
@@ -523,7 +524,7 @@ def parse_sbml_qual_function(
                 return value
         return default_level
 
-    return function_realization
+    return lambda x: min(max_level, function_realization(x))
 
 
 ####################################################################################################
@@ -607,6 +608,7 @@ class EquationSystem(object):
 
         # record their 'maxlevel', i.e. if they are boolean or ternary, or whatever.
         # We are only going to support ternary, so error out if something else is encountered
+        max_levels: Dict[str, int] = {}
         for species in species_list:
             if "qual:maxlevel" not in species.attrs:
                 return (
@@ -614,11 +616,14 @@ class EquationSystem(object):
                 )
 
             try:
-                if int(species.attrs["qual:maxlevel"]) != 2:
+                if int(species.attrs["qual:maxlevel"]) not in {1, 2}:
                     return (
                         f"Max level provided for {species.attrs['qual:id']}"
-                        f" is {species.attrs['qual:maxlevel']}, expecting 2"
+                        f" is {species.attrs['qual:maxlevel']}, expecting 1 or 2"
                     )
+                max_levels[species.attrs["qual:id"]] = int(
+                    species.attrs["qual:maxlevel"]
+                )
             except ValueError:
                 return (
                     f"Max level provided for {species.attrs['qual:id']} is"
@@ -680,7 +685,9 @@ class EquationSystem(object):
                 return "Should have exactly one list of function terms"
             try:
                 transition_function: Callable = parse_sbml_qual_function(
-                    input_variables, function_terms[0]
+                    input_variables,
+                    function_terms[0],
+                    max_level=max_levels[target_variable],
                 )
             except ParseError as e:
                 return "Could not parse functions " + str(e)
