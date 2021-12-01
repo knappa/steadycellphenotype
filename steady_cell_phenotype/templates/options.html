@@ -92,7 +92,7 @@
 
 function download_config() {
     const configString = 'data:text/json;charset=utf-8,' +
-                            encodeURIComponent(JSON.stringify(get_config_json()));
+                            encodeURIComponent(JSON.stringify(get_config_json(), null, 2));
     const anchor = document.createElement('a');
     anchor.setAttribute('href', configString );
     anchor.setAttribute('download', 'config.json');
