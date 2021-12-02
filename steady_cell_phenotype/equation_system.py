@@ -637,24 +637,30 @@ class EquationSystem(object):
                 "qual:constant" in species.attrs
                 and species.attrs["qual:constant"].lower() != "false"
             ):
+                target_variable = species.attrs["qual:id"].strip()
                 if "qual:initiallevel" in species.attrs:
                     # if the initial level is set then we make the variable constant in the
                     # sense that the update function sets that particular value.
                     try:
                         constant_level = int(species.attrs["qual:initiallevel"])
-                        equations[species.attrs["qual:id"]] = constant_level
+                        equations[target_variable] = constant_level
                     except ValueError:
                         return (
-                            f"Level provided for {species.attrs['qual:id']} is"
+                            f"Level provided for {target_variable} is"
                             f" {species.attrs['qual:initiallevel']}, cannot parse as an integer"
                         )
 
                 else:
                     # if the initial level isn't set then we make the variable constant in the
-                    # sense that the update function is the identity.
-                    equations[species.attrs["qual:id"]] = Monomial.as_var(
-                        species.attrs["qual:id"]
-                    )
+                    # sense that the update function is the identity. Except for when the variable
+                    # is boolean, where it gets a min with 1 applied.
+                    if max_levels[target_variable] == 2:
+                        equations[target_variable] = Monomial.as_var(target_variable)
+                    else:
+                        # Note: this assumes PRIME=3
+                        equations[target_variable] = (
+                            Monomial.as_var(target_variable) ** 2
+                        )
 
         # now we parse the transition functions into Expressions
         for transition in soup.findChildren("qual:transition"):
