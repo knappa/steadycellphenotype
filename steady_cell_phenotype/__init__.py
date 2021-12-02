@@ -19,8 +19,10 @@
 # NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
 # DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 # OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
+import copy
+import os
 import tempfile
+import uuid
 from typing import Dict, List
 
 import matplotlib
@@ -32,6 +34,7 @@ from werkzeug.utils import secure_filename
 from steady_cell_phenotype._util import (error_report, get_model_variables,
                                          process_model_text)
 from steady_cell_phenotype.equation_system import ParseError
+from steady_cell_phenotype.session_data_cache import SessionDataCache
 
 matplotlib.use("agg")
 
@@ -41,7 +44,7 @@ def create_app(test_config=None):
     app = Flask(__name__, instance_relative_config=True)
 
     app.config.from_mapping(
-        SECRET_KEY="dev",
+        SECRET_KEY=os.getenv("SECRET_KEY", default="dev"),
         MAX_CONTENT_LENGTH=512 * 1024,  # maximum upload size: 512 kilobytes
         UPLOAD_FOLDER=tempfile.TemporaryDirectory(),
         # TODO: added to assist when developing, should be removed in production
@@ -54,6 +57,8 @@ def create_app(test_config=None):
     else:
         # load the test config if passed in
         app.config.from_mapping(test_config)
+
+    data_cache: SessionDataCache = SessionDataCache(size=1000)
 
     ################################################################################################
     # some _effectively_ static pages, which share a basic template
@@ -104,19 +109,13 @@ def create_app(test_config=None):
     ################################################################################################
     # a model download page
 
-    @app.route("/download-model/<string:modeltype>", methods=["GET", "POST"])
+    @app.route("/download-model/<string:modeltype>", methods=["POST"])
     def download_model(modeltype: str) -> Response:
-
-        if session.new or "model_text" not in session:
-            return make_response(
-                error_report("Please go to the main page to enter your model.")
-            )
-
         use_sbml_qual_format = modeltype[-5:] == ".sbml"
         use_text_format = modeltype[-4:] == ".txt"
 
         # get the variable list and right hand sides
-        model_text: str = session["model_text"]
+        model_text: str = request.form["model_text"].strip()
 
         variables, update_fn, submitted_equation_system = process_model_text(
             model_text, dict(), dict()
@@ -165,33 +164,58 @@ def create_app(test_config=None):
                     if sbml_model is not None and not isinstance(sbml_model, str):
                         model_from_file = str(sbml_model)
 
-        if session.new or "model_text" not in session:
-            session.permanent = True
-            session["model_text"] = ""
+        session_uuid: str = get_session_uuid()
 
         if model_from_file is not None:
-            session["model_text"] = model_from_file
+            data_cache[session_uuid] = update_session_data(
+                data_cache[session_uuid], model_text=model_from_file
+            )
 
-        model_text = session["model_text"]
+        model_text = (
+            data_cache[session_uuid]["model_text"]
+            if "model_text" in data_cache[session_uuid]
+            else ""
+        )
         model_lines = model_text.count("\n")
         return render_template(
             "index.html", model_text=model_text, rows=max(10, model_lines + 2)
         )
 
+    def update_session_data(
+        previous_session_data: Dict, *, model_text: str = None
+    ) -> Dict:
+        if previous_session_data is None:
+            return {"model_text": model_text}
+        else:
+            previous_session_data = copy.deepcopy(previous_session_data)
+            if model_text is not None:
+                previous_session_data["model_text"] = model_text
+            return previous_session_data
+
+    def get_session_uuid() -> str:
+        if session.new or "uuid" not in session:
+            session.permanent = True
+            session["uuid"] = str(uuid.uuid1())
+        if str(session["uuid"]) not in data_cache:
+            data_cache[str(session["uuid"])] = update_session_data({})
+        return session["uuid"]
+
     ################################################################################################
+
     # main computational page
 
     @app.route("/compute/", methods=["POST"])
     def compute():
         """render the results of computation page"""
 
-        if session.new or "model_text" not in session:
+        session_uuid = get_session_uuid()
+        if "model_text" not in data_cache[session_uuid]:
             return make_response(
                 error_report("Please go to the main page to enter your model.")
             )
 
         # get the variable list and right hand sides
-        model_text: str = session["model_text"]
+        model_text: str = data_cache[session_uuid]["model_text"]
         variables: List[str]
         right_sides: List[str]
         try:
@@ -304,14 +328,11 @@ def create_app(test_config=None):
     def options():
         """model options page"""
 
-        if session.new or "model_text" not in session:
-            return make_response(
-                error_report("Please go to the main page to enter your model.")
-            )
+        session_uuid = get_session_uuid()
 
-        # get submitted model from form
+        # get submitted model from Form
         model_text = request.form["model"].strip()
-        session["model_text"] = model_text
+
         try:
             # attempt to get the variable list
             variables, right_sides = get_model_variables(model_text)
@@ -323,7 +344,10 @@ def create_app(test_config=None):
         model = ""
         for variable, rhs in zip(variables, right_sides):
             model += "{v} = {r}\n".format(v=variable, r=rhs)
-        session["model_text"] = model
+
+        data_cache[session_uuid] = update_session_data(
+            data_cache[session_uuid], model_text=model
+        )
 
         # respond with the options page
         return make_response(render_template("options.html", variables=variables))

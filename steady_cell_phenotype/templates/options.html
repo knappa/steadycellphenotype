@@ -58,7 +58,7 @@
     }
   }
 
-  // a list of variable present in the model
+  // a list of variables present in the model
   const model_variables = [{% for variable in variables %}"{{ variable }}", {% endfor %}]
 
   function get_config_json() {

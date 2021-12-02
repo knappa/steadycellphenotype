@@ -12,12 +12,14 @@
 <form class="w3-container" method="post" action="/options/" enctype="multipart/form-data">
     <div class="w3-mobile">
         <div class="w3-cell-row">
+            <!-- Model options -->
             <div style="border:3px solid white"
                  class="w3-container w3-cell">
                 <input class="w3-btn w3-us-red w3-margin w3-round"
                        type="submit"
                        value="Set Model Options">
             </div>
+            <!-- Upload a model-->
             <div style="border: 3px solid white"
                  class="w3-container w3-margin-bottom w3-round w3-hover-border-blue w3-cell w3-mobile">
                 <label class="w3-btn w3-us-red w3-margin-top w3-margin-bottom w3-round"
@@ -32,8 +34,10 @@
                        value="Upload a Model File">
             </div>
         </div>
+        <!-- Model textbox -->
         <textarea class="w3-input w3-margin w3-border w3-round w3-border-black"
                   name="model"
+                  id="model_text"
                   spellcheck="false"
                   autocomplete="off" rows="{{ rows }}"
                   autofocus placeholder="The model goes here">{% if model_text %}{{ model_text }}{% endif %}</textarea>
@@ -51,16 +55,25 @@
 
 <script>
 function downloadModel() {
-    const link = document.createElement('a');
+    var url = "download-model/";
+    var filename = "model.";
     if (document.getElementById("as-sbml-qual").checked) {
-        link.href = '/download-model/model.sbml';
-        link.setAttribute('download', 'model.sbml');
+        filename += 'sbml';
     } else {
-        link.href = '/download-model/model.txt';
-        link.setAttribute('download', 'model.txt');
+        filename += 'txt';
     }
-    document.body.appendChild(link);
-    link.click();
+    axios({
+        url: url+filename,
+        method: 'POST',
+        responseType: 'blob',
+        model_text: document.getElementById('model_text'),
+    }).then((response) => {
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(new Blob([response.data]));
+        link.setAttribute('download', filename);
+        document.body.appendChild(link);
+        link.click();
+    });
 }
 </script>
 
