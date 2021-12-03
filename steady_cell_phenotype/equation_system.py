@@ -490,7 +490,10 @@ def parse_mathml_to_function(
 
 
 def parse_sbml_qual_function(
-    input_variables: List[str], function_terms: Tag, max_level: int = 2
+    input_variables: List[str],
+    function_terms: Tag,
+    max_levels: Dict[str, int],
+    max_level_output: int = 2,
 ) -> Callable[..., int]:
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
     if len(default_levels) != 1:
@@ -521,12 +524,18 @@ def parse_sbml_qual_function(
         conditional_levels.append((level, level_function))
 
     def function_realization(input_values) -> int:
+        # ensure that input values don't exceed their max values
+        input_values = [
+            min(value, max_levels[variable])
+            for value, variable in zip(input_values, input_variables)
+        ]
+        # find the first of the output values that registers a "true"
         for value, function in conditional_levels:
             if function(input_values):
                 return value
         return default_level
 
-    return lambda x: min(max_level, function_realization(x))
+    return lambda x: min(max_level_output, function_realization(x))
 
 
 ####################################################################################################
@@ -695,7 +704,8 @@ class EquationSystem(object):
                 transition_function: Callable = parse_sbml_qual_function(
                     input_variables,
                     function_terms[0],
-                    max_level=max_levels[target_variable],
+                    max_levels=max_levels,
+                    max_level_output=max_levels[target_variable],
                 )
             except ParseError as e:
                 return "Could not parse functions " + str(e)
