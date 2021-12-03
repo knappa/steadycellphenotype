@@ -89,30 +89,34 @@ def tokenize(input_string: str) -> Sequence[Tuple[str, Union[str, int]]]:
         elif input_string[0] == "^":
             tokenized_list.append(("EXP", "^"))
             input_string = input_string[1:]
-        elif input_string[0:3].upper() in function_names:
-            tokenized_list.append(("FUNCTION", input_string[0:3].upper()))
-            input_string = input_string[3:]
         else:
-            # must be a name or constant. can be of variable length, terminated by punctuation or
-            # whitespace
+            # could be a symbol, function name, or constant. can be of variable length, terminated
+            # by punctuation or whitespace
             index = 0
             while (
-                index < len(input_string)
-                and not input_string[index] in punctuation
-                and not input_string[index] in whitespace
+                    index < len(input_string)
+                    and not input_string[index] in punctuation
+                    and not input_string[index] in whitespace
             ):
                 index += 1
+
             if index > 0:
-                try:
-                    # check to see if this is a constant.
-                    const = int(input_string[0:index])
-                    tokenized_list.append(("CONSTANT", const))
-                except ValueError:
-                    # if it isn't parsable as an int, it is a symbol
-                    tokenized_list.append(("SYMBOL", input_string[0:index]))
-                input_string = input_string[index:]
+                if index == 3 and input_string[0:3].upper() in function_names:
+                    tokenized_list.append(("FUNCTION", input_string[0:3].upper()))
+                    input_string = input_string[3:]
+                else:
+                    try:
+                        # check to see if this is a constant.
+                        const = int(input_string[0:index])
+                        tokenized_list.append(("CONSTANT", const))
+                    except ValueError:
+                        # if it isn't parsable as an int, it is a symbol
+                        tokenized_list.append(("SYMBOL", input_string[0:index]))
+                    input_string = input_string[index:]
             else:
                 raise Exception("Error in tokenization, cannot understand what this is")
+
+
     return tokenized_list
 
 
@@ -584,7 +588,7 @@ class EquationSystem(object):
         """
         equation_system: EquationSystem = EquationSystem()
         for line_number, line in enumerate(lines.strip().splitlines()):
-            equation_system.parse_and_add_equation(line)
+            equation_system.parse_and_add_equation(line, line_number=line_number+1)
         return equation_system
 
     @staticmethod
@@ -1214,7 +1218,7 @@ class EquationSystem(object):
 
     ################################################################################################
 
-    def parse_and_add_equation(self, line: str):
+    def parse_and_add_equation(self, line: str, line_number: Union[int, None] = None):
         """
         Parse a line of the form 'symbol=formula' and add it to the system.
 
@@ -1252,7 +1256,15 @@ class EquationSystem(object):
             or tokenized_list[0][0] != "SYMBOL"
             or tokenized_list[1][0] != "EQUALS"
         ):
-            raise ParseError("Formula did not begin with a symbol then equals sign!")
+            if line_number is not None:
+                raise ParseError(
+                    f"On line number {line_number}, formula did not"
+                    f" begin with a symbol then equals sign!" # + repr(tokenized_list)
+                )
+            else:
+                raise ParseError(
+                    "Formula did not begin with a symbol then equals sign!"
+                )
         target_variable = tokenized_list[0][1]
 
         # the rest should correspond to the formula
