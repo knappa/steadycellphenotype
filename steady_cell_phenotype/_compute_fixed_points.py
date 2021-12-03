@@ -9,6 +9,8 @@ from steady_cell_phenotype._util import (error_report, get_resource_path,
                                          get_text_resource, html_encode,
                                          message)
 
+CONSOLE_MACAULAY2_TIMING = False
+
 
 def compute_fixed_points(knockout_model, variables, continuous):
     """Run the fixed-point finding computation"""
@@ -72,10 +74,15 @@ def compute_fixed_points(knockout_model, variables, continuous):
             )
 
         # TODO: put a limit on the amount of time this can run
+        if CONSOLE_MACAULAY2_TIMING:
+            start: float = time.time()
         find_steady_states_process = subprocess.run(
             [macaulay_executable, "--script", tmp_dir_name + "/find_steady_states.m2"],
             capture_output=True,
         )
+        if CONSOLE_MACAULAY2_TIMING:
+            elapsed: float = time.time() - start
+            print(f"Macaulay took {elapsed} seconds")
         if find_steady_states_process.returncode != 0:
             # this string appears when there are no solutions. I don't think it appears
             # otherwise.
