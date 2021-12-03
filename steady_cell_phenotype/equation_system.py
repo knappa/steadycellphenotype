@@ -6,12 +6,12 @@ from functools import partial, reduce
 from html import escape
 from itertools import product
 from math import floor
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union, cast
 
 import numpy as np
 from attr import attrib, attrs
-# noinspection PyProtectedMember
-from bs4 import BeautifulSoup, ResultSet, Tag
+from bs4 import BeautifulSoup
+from bs4.element import ResultSet, Tag
 
 from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
                                         Monomial)
@@ -480,7 +480,9 @@ def parse_mathml_to_function(
             )
 
     # examine the contents of the mathml, there may be strings (probably \n) which we should ignore
-    contents: List[Tag] = list(filter(lambda x: type(x) == Tag, mathml_tag.contents))
+    contents: List[Tag] = cast(
+        List[Tag], list(filter(lambda x: isinstance(x, Tag), mathml_tag.contents))
+    )
     if len(contents) != 1:
         raise ParseError
 
