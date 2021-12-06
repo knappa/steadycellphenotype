@@ -8,7 +8,6 @@ from typing import Dict, Iterator, List, NamedTuple, Tuple
 
 import matplotlib
 import matplotlib.pyplot as plt
-import numba
 import numpy as np
 import pathos
 from flask import Markup, make_response, render_template
