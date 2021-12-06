@@ -94,9 +94,9 @@ def tokenize(input_string: str) -> Sequence[Tuple[str, Union[str, int]]]:
             # by punctuation or whitespace
             index = 0
             while (
-                    index < len(input_string)
-                    and not input_string[index] in punctuation
-                    and not input_string[index] in whitespace
+                index < len(input_string)
+                and not input_string[index] in punctuation
+                and not input_string[index] in whitespace
             ):
                 index += 1
 
@@ -115,7 +115,6 @@ def tokenize(input_string: str) -> Sequence[Tuple[str, Union[str, int]]]:
                     input_string = input_string[index:]
             else:
                 raise Exception("Error in tokenization, cannot understand what this is")
-
 
     return tokenized_list
 
@@ -354,135 +353,213 @@ def polynomial_output_parallel_helper(equation: ExpressionOrInt) -> ExpressionOr
 ####################################################################################################
 
 
+# noinspection PyUnusedLocal
+def _parse_mathml_constant_to_function(
+    input_variable_list: List[str], mathml_subtag: Tag
+) -> Callable:
+    # constant
+    if mathml_subtag.attrs["type"] != "integer":
+        raise ParseError("Non-integer data type found")
+    try:
+        value = int(mathml_subtag.text)
+
+        # noinspection PyUnusedLocal
+        def f(input_values):
+            return value
+
+        return f
+    except ValueError:
+        raise ParseError(f"Could not parse {mathml_subtag.text} as an integer")
+
+
+def _parse_mathml_variable_to_function(
+    input_variable_list: List[str], mathml_subtag: Tag
+) -> Callable:
+    # variable
+    variable_name = mathml_subtag.text.strip()
+    try:
+        variable_index = input_variable_list.index(variable_name)
+    except ValueError:
+        raise ParseError(
+            f"'{variable_name}' not found in list"
+            f" of variables: {input_variable_list}"
+        )
+
+    # noinspection PyUnusedLocal
+    def f(input_values):
+        return input_values[variable_index]
+
+    return f
+
+
+def _parse_mathml_function_to_function(
+    input_variable_list: List[str], mathml_subtag: Tag
+) -> Callable:
+    tag_contents: List[Tag] = cast(
+        List[Tag], list(filter(lambda x: type(x) == Tag, mathml_subtag.contents))
+    )
+    if len(tag_contents) <= 0:
+        raise ParseError("Empty apply")
+    operation = tag_contents[0].name
+    operand_functions: List[Callable] = [
+        _parse_mathml_to_function_helper(input_variable_list, operand_tag)
+        for operand_tag in tag_contents[1:]
+    ]
+
+    # handle 'not', 'unary minus', and the modulus
+    unary_operations = {
+        "not": operator.not_,
+        "minus": operator.neg,
+        "floor": lambda x: floor(x),
+    }
+    if operation in unary_operations and len(operand_functions) == 1:
+        operator_function = unary_operations[operation]
+        operand = operand_functions[0]
+
+        def f(input_values):
+            return operator_function(operand(input_values))
+
+        return f
+
+    # the commutative operators
+    commutative_operations = {
+        "max": lambda a, b: max(a, b),
+        "min": lambda a, b: min(a, b),
+        "plus": operator.add,
+        "add": operator.add,
+        "times": operator.mul,
+        "and": operator.and_,
+        "or": operator.or_,
+        "xor": operator.xor,
+        "eq": operator.eq,
+        "neq": operator.ne,
+    }
+    if operation in commutative_operations and len(operand_functions) >= 1:
+        operator_function = commutative_operations[operation]
+
+        def f(input_values):
+            return reduce(
+                operator_function,
+                [function(input_values) for function in operand_functions],
+            )
+
+        return f
+
+    # remaining binary operators: comparisons and other non-commutative operations
+    binary_operations = {
+        "eq": operator.eq,
+        "neq": operator.ne,
+        "gt": operator.gt,
+        "lt": operator.lt,
+        "geq": operator.ge,
+        "leq": operator.le,
+        "minus": operator.sub,
+        "divide": operator.truediv,
+        "power": operator.pow,
+        "rem": operator.mod,
+    }
+    if operation in binary_operations and len(operand_functions) == 2:
+        operator_function = binary_operations[operation]
+        operand_a, operand_b = operand_functions
+
+        def f(input_values):
+            return operator_function(operand_a(input_values), operand_b(input_values))
+
+        return f
+
+    # we didn't handle the parse
+    raise ParseError(
+        f"Unsupported function: {operation} on {len(operand_functions)} operands"
+    )
+
+
+def _parse_mathml_piecewise_to_function(
+    input_variable_list: List[str], mathml_subtag: Tag
+) -> Callable:
+    tag_contents: List[Tag] = cast(
+        List[Tag], list(filter(lambda x: type(x) == Tag, mathml_subtag.contents))
+    )
+    if len(tag_contents) <= 0:
+        raise ParseError("Empty piecewise")
+
+    otherwise_tags = [tag for tag in tag_contents if tag.name == "otherwise"]
+    if len(otherwise_tags) > 1:
+        raise ParseError("Multiple otherwise tags")
+    otherwise_tag = None if len(otherwise_tags) == 0 else otherwise_tags[0]
+
+    otherwise_function: Optional[Callable] = None
+    if otherwise_tag is not None:
+        otherwise_tag_contents: List[Tag] = cast(
+            List[Tag], list(filter(lambda x: type(x) == Tag, otherwise_tag.contents))
+        )
+        if len(otherwise_tag_contents) != 1:
+            raise ParseError("otherwise tag in piecewise has multiple subtags")
+        otherwise_function = _parse_mathml_to_function_helper(
+            input_variable_list, otherwise_tag_contents[0]
+        )
+
+    piecewise_conditions: List[Callable] = []
+    piecewise_functions: List[Callable] = []
+    for piece_tag in (tag for tag in tag_contents if tag.name == "piece"):
+        piece_tag_contents = cast(
+            List[Tag], list(filter(lambda x: type(x) == Tag, piece_tag.contents))
+        )
+        if len(piece_tag_contents) != 2:
+            raise ParseError("<piece> tags should have exactly two subtags")
+        function_tag = piece_tag_contents[0]
+        condition_tag = piece_tag_contents[1]
+        piecewise_functions.append(
+            _parse_mathml_to_function_helper(input_variable_list, function_tag)
+        )
+        piecewise_conditions.append(
+            _parse_mathml_to_function_helper(input_variable_list, condition_tag)
+        )
+
+    def f(input_values):
+        for condition, function in zip(piecewise_conditions, piecewise_functions):
+            if condition(input_values):
+                return function(input_values)
+        if otherwise_function:
+            otherwise_function(input_values)
+        else:
+            raise ValueError("outside of function domain")
+
+    return f
+
+
+def _parse_mathml_to_function_helper(
+    input_variable_list: List[str], mathml_subtag
+) -> Callable:
+    """
+    Recursive building of the function from the inner mathml.
+
+    Parameters
+    ----------
+    input_variable_list
+        ordered list of variable names
+    mathml_subtag
+        inner mathml to parse to a function
+
+    Returns
+    -------
+    Callable
+    """
+    tag_type = mathml_subtag.name
+    tags: Dict[str, Callable[..., Callable]] = {
+        "cn": _parse_mathml_constant_to_function,
+        "ci": _parse_mathml_variable_to_function,
+        "apply": _parse_mathml_function_to_function,
+        "piecewise": _parse_mathml_piecewise_to_function,
+    }
+    if tag_type in tags:
+        return tags[tag_type](input_variable_list, mathml_subtag)
+    else:
+        raise ParseError(f"Unsupported tag (in this position?): {tag_type}")
+
+
 def parse_mathml_to_function(
     input_variables: List[str], mathml_tag: Tag
 ) -> Callable[..., bool]:
-    def parse_mathml_helper(input_variable_list: List[str], mathml_subtag) -> Callable:
-        """
-        Recursive building of the function from the inner mathml.
-
-        Parameters
-        ----------
-        input_variable_list
-            ordered list of variable names
-        mathml_subtag
-            inner mathml to parse to a function
-
-        Returns
-        -------
-        Callable
-        """
-        tag_type = mathml_subtag.name
-        if tag_type == "cn":
-            # constant
-            if mathml_subtag.attrs["type"] != "integer":
-                raise ParseError("Non-integer data type found")
-            try:
-                value = int(mathml_subtag.text)
-
-                # noinspection PyUnusedLocal
-                def f(input_values):
-                    return value
-
-                return f
-            except ValueError:
-                raise ParseError(f"Could not parse {mathml_subtag.text} as an integer")
-        if tag_type == "ci":
-            # variable
-            variable_name = mathml_subtag.text.strip()
-            try:
-                variable_index = input_variable_list.index(variable_name)
-            except ValueError:
-                raise ParseError(
-                    f"'{variable_name}' not found in list"
-                    f" of variables: {input_variable_list}"
-                )
-
-            # noinspection PyUnusedLocal
-            def f(input_values):
-                return input_values[variable_index]
-
-            return f
-        if tag_type == "apply":
-            tag_contents: List[Tag] = list(
-                filter(lambda x: type(x) == Tag, mathml_subtag.contents)
-            )
-            if len(tag_contents) <= 0:
-                raise ParseError("Empty apply")
-            operation = tag_contents[0].name
-            operand_functions: List[Callable] = [
-                parse_mathml_helper(input_variables, operand_tag)
-                for operand_tag in tag_contents[1:]
-            ]
-
-            # handle 'not', 'unary minus', and the modulus
-            unary_operations = {
-                "not": operator.not_,
-                "minus": operator.neg,
-                "floor": lambda x: floor(x),
-            }
-            if operation in unary_operations and len(operand_functions) == 1:
-                operator_function = unary_operations[operation]
-                operand = operand_functions[0]
-
-                def f(input_values):
-                    return operator_function(operand(input_values))
-
-                return f
-
-            # the commutative operators
-            commutative_operations = {
-                "max": lambda a, b: max(a, b),
-                "min": lambda a, b: min(a, b),
-                "plus": operator.add,
-                "add": operator.add,
-                "times": operator.mul,
-                "and": operator.and_,
-                "or": operator.or_,
-                "xor": operator.xor,
-                "eq": operator.eq,
-                "neq": operator.ne,
-            }
-            if operation in commutative_operations and len(operand_functions) >= 1:
-                operator_function = commutative_operations[operation]
-
-                def f(input_values):
-                    return reduce(
-                        operator_function,
-                        [function(input_values) for function in operand_functions],
-                    )
-
-                return f
-
-            # remaining binary operators: comparisons and other non-commutative operations
-            binary_operations = {
-                "eq": operator.eq,
-                "neq": operator.ne,
-                "gt": operator.gt,
-                "lt": operator.lt,
-                "geq": operator.ge,
-                "leq": operator.le,
-                "minus": operator.sub,
-                "divide": operator.truediv,
-                "power": operator.pow,
-                "rem": operator.mod,
-            }
-            if operation in binary_operations and len(operand_functions) == 2:
-                operator_function = binary_operations[operation]
-                operand_a, operand_b = operand_functions
-
-                def f(input_values):
-                    return operator_function(
-                        operand_a(input_values), operand_b(input_values)
-                    )
-
-                return f
-
-            # we didn't handle the parse
-            raise ParseError(
-                f"Unsupported function: {operation} on {len(operand_functions)} operands"
-            )
-
     # examine the contents of the mathml, there may be strings (probably \n) which we should ignore
     contents: List[Tag] = cast(
         List[Tag], list(filter(lambda x: isinstance(x, Tag), mathml_tag.contents))
@@ -490,7 +567,7 @@ def parse_mathml_to_function(
     if len(contents) != 1:
         raise ParseError
 
-    return parse_mathml_helper(input_variables, contents[0])
+    return _parse_mathml_to_function_helper(input_variables, contents[0])
 
 
 def parse_sbml_qual_function(
@@ -499,6 +576,25 @@ def parse_sbml_qual_function(
     max_levels: Dict[str, int],
     max_level_output: int = 2,
 ) -> Callable[..., int]:
+    """
+    Builds a function from inner mathml.
+
+    Parameters
+    ----------
+    input_variables
+        ordered list of variable names
+    function_terms
+        inner mathml to parse to a function
+    max_levels: Dict[str, int]
+        maximum level dictionary for free variables
+    max_level_output: int
+        maximum level for the output variable
+
+    Returns
+    -------
+    Callable
+    """
+    # figure out the default level
     default_levels: ResultSet = function_terms.findChildren("qual:defaultterm")
     if len(default_levels) != 1:
         raise ParseError("There should be exactly one default level!")
@@ -512,6 +608,7 @@ def parse_sbml_qual_function(
             f"Non-integer default level {default_level_tag.attrs['qual:resultlevel']}"
         )
 
+    # now the conditional level(s)
     conditional_levels: List[Tuple[int, Callable[..., bool]]] = []
     for conditional_level_tag in function_terms.findChildren("qual:functionterm"):
         if "qual:resultlevel" not in conditional_level_tag.attrs:
@@ -588,7 +685,7 @@ class EquationSystem(object):
         """
         equation_system: EquationSystem = EquationSystem()
         for line_number, line in enumerate(lines.strip().splitlines()):
-            equation_system.parse_and_add_equation(line, line_number=line_number+1)
+            equation_system.parse_and_add_equation(line, line_number=line_number + 1)
         return equation_system
 
     @staticmethod
@@ -712,7 +809,7 @@ class EquationSystem(object):
                     max_level_output=max_levels[target_variable],
                 )
             except ParseError as e:
-                return "Could not parse functions " + str(e)
+                return "Could not parse functions: " + str(e)
 
             expression: ExpressionOrInt = 0
 
@@ -1218,7 +1315,7 @@ class EquationSystem(object):
 
     ################################################################################################
 
-    def parse_and_add_equation(self, line: str, line_number: Union[int, None] = None):
+    def parse_and_add_equation(self, line: str, line_number: Optional[int] = None):
         """
         Parse a line of the form 'symbol=formula' and add it to the system.
 
@@ -1226,6 +1323,8 @@ class EquationSystem(object):
         ----------
         line: str
             A line of the form 'symbol=formula # comment' or pure comment starting with '#'
+        line_number: Union[int, None]
+            line number in the model, used for error reporting
 
         Returns
         -------
@@ -1259,7 +1358,7 @@ class EquationSystem(object):
             if line_number is not None:
                 raise ParseError(
                     f"On line number {line_number}, formula did not"
-                    f" begin with a symbol then equals sign!" # + repr(tokenized_list)
+                    f" begin with a symbol then equals sign!"  # + repr(tokenized_list)
                 )
             else:
                 raise ParseError(
