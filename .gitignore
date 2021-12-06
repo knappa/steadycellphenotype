@@ -108,3 +108,4 @@ venv.bak/
 
 # for julia
 pip-wheel-metadata
+.DS_Store
