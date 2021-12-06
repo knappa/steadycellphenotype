@@ -62,17 +62,22 @@ function downloadModel() {
     } else {
         filename += 'txt';
     }
+    var modelFormData = new FormData();
+    modelFormData.append('model_text', document.getElementById('model_text').value);
     axios({
         url: url+filename,
         method: 'POST',
         responseType: 'blob',
-        model_text: document.getElementById('model_text'),
+        data: modelFormData,
+        headers: { "Content-Type": "multipart/form-data" },
     }).then((response) => {
         const link = document.createElement('a');
         link.href = window.URL.createObjectURL(new Blob([response.data]));
         link.setAttribute('download', filename);
         document.body.appendChild(link);
         link.click();
+    }).catch((response) => {
+        console.log(response);
     });
 }
 </script>
