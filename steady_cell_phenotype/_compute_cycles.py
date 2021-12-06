@@ -13,9 +13,10 @@ import numpy as np
 import pathos
 from flask import Markup, make_response, render_template
 
+from steady_cell_phenotype import ParseError
 from steady_cell_phenotype._util import (BinCounter, HashableNdArray, batcher,
                                          complete_search_generator,
-                                         get_phased_trajectory,
+                                         error_report, get_phased_trajectory,
                                          process_model_text,
                                          random_search_generator)
 
@@ -242,13 +243,16 @@ def compute_cycles(
     )
 
     # create an update function and equation system
-    variables, update_fn, equation_system = process_model_text(
-        model_text, knockouts, continuous
-    )
+    try:
+        variables, update_fn, equation_system = process_model_text(
+            model_text, knockouts, continuous
+        )
+    except ParseError as e:
+        return make_response(error_report(e.message))
 
     # compile and warm up the jitter
-    update_fn = numba.jit(update_fn)
-    update_fn(np.zeros(len(variables), dtype=np.int64))
+    # update_fn = numba.jit(update_fn)
+    # update_fn(np.zeros(len(variables), dtype=np.int64))
 
     # associate variable names with their index in vectors
     variable_idx: Dict[str, int] = dict(zip(variables, range(len(variables))))
