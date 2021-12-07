@@ -25,6 +25,7 @@ DEFAULT_COMPARTMENT_NAME = "compartment1"
 
 FORCE_SBML_POLYNOMIAL = False
 SBML_TRUTHTABLE_OUTPUT = True
+DEBUG_TRUTH_TABLES = False
 
 try:
     # noinspection PyUnresolvedReferences
@@ -1042,25 +1043,26 @@ class EquationSystem(object):
                         truth_table: TruthTable
                         truth_table, counts = update_formula.as_truth_table()
 
-                        with open("debug/" + str(symbol) + ".txt", "w") as file:
-                            file.write(
-                                (
-                                    ",".join(
-                                        [symbol + "(out)"]
-                                        + [var for var, val in truth_table[0][0]]
+                        if DEBUG_TRUTH_TABLES:
+                            with open("debug/" + str(symbol) + ".txt", "w") as file:
+                                file.write(
+                                    (
+                                        ",".join(
+                                            [symbol + "(out)"]
+                                            + [var for var, val in truth_table[0][0]]
+                                        )
                                     )
-                                )
-                                + "\n"
-                            )
-                            file.writelines(
-                                [
-                                    str(line[1])
-                                    + ","
-                                    + ",".join(str(val) for var, val in line[0])
                                     + "\n"
-                                    for line in truth_table
-                                ]
-                            )
+                                )
+                                file.writelines(
+                                    [
+                                        str(line[1])
+                                        + ","
+                                        + ",".join(str(val) for var, val in line[0])
+                                        + "\n"
+                                        for line in truth_table
+                                    ]
+                                )
 
                         default_written = False
                         # default = 0
