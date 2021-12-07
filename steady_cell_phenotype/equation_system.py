@@ -896,6 +896,8 @@ class EquationSystem(object):
         return {
             variable: formula.eval(state)
             if isinstance(formula, Expression)
+            else (formula % 3)
+            if isinstance(formula, int)
             else formula
             for variable, formula in self._equation_dict.items()
         }
@@ -1094,6 +1096,7 @@ class EquationSystem(object):
                             return apply
 
                         # level = 1
+                        level1_apply = None
                         if not default_written and counts[1] > 0:
                             default_written = True
                             function_terms.append(
@@ -1116,10 +1119,9 @@ class EquationSystem(object):
                             level1_apply.append(
                                 Tag(name="or", is_xml=True, can_be_empty_element=True)
                             )
-                        else:
-                            level1_apply = None
 
                         # level = 2
+                        level2_apply = None
                         if not default_written:
                             function_terms.append(
                                 soup.new_tag(
@@ -1141,8 +1143,6 @@ class EquationSystem(object):
                             level2_apply.append(
                                 Tag(name="or", is_xml=True, can_be_empty_element=True)
                             )
-                        else:
-                            level2_apply = None
 
                         # fill in terms
                         for inputs, value in truth_table:
@@ -1295,7 +1295,11 @@ class EquationSystem(object):
             constant_dict[constant_variable] = constant
 
         equations = {
-            var: eqn.eval(constant_dict) if isinstance(eqn, Expression) else eqn
+            var: eqn.eval(constant_dict)
+            if isinstance(eqn, Expression)
+            else (eqn % 3)
+            if isinstance(eqn, int)
+            else eqn
             for var, eqn in self._equation_dict.items()
         }
 
@@ -1349,6 +1353,10 @@ class EquationSystem(object):
         else:
             composed_dict = {
                 target_var: eqn.eval(other._equation_dict)
+                if isinstance(eqn, Expression)
+                else (eqn % 3)
+                if isinstance(eqn, int)
+                else eqn
                 for target_var, eqn in self._equation_dict
             }
 

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import operator
 from copy import copy
 from enum import Enum
 from itertools import product
-from typing import Dict, List, Set, Tuple, Union
+from typing import Dict, List, Set, Tuple, Union, cast
 
 import numpy as np
 from attr import attrib, attrs
@@ -185,7 +186,10 @@ class Expression(object):
         """
         raise NotImplementedError("eval() unimplemented in " + str(type(self)))
 
-    def is_constant(self):
+    def __int__(self) -> int:
+        raise NotImplementedError("__int__() unimplemented in " + str(type(self)))
+
+    def is_constant(self) -> bool:
         raise NotImplementedError("is_constant() unimplemented in " + str(type(self)))
 
     def as_c_expression(self):
@@ -463,7 +467,7 @@ class Function(Expression):
         ]
         return Function(self._function_name, renamed_parameters)
 
-    def eval(self, variable_dict):
+    def eval(self, variable_dict) -> ExpressionOrInt:
         # evaluate function parameters
         evaluated_expressions = [
             expr if is_integer(expr) else expr.eval(variable_dict)
@@ -528,7 +532,13 @@ class Function(Expression):
         else:
             raise Exception("cannot evaluate unknown function " + self._function_name)
 
-    def is_constant(self):
+    def __int__(self) -> int:
+        if not self.is_constant():
+            raise ValueError("non constant expressions can't be cast to ints")
+
+        return cast(int, self.eval({}))
+
+    def is_constant(self) -> bool:
         return all(
             is_integer(expr) or expr.is_constant() for expr in self._expression_list
         )
@@ -725,14 +735,14 @@ class BinaryOperation(Expression):
             right_expression=renamed_right_expression,
         )
 
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return (
             is_integer(self._left_expression) or self._left_expression.is_constant()
         ) and (
             is_integer(self._right_expression) or self._right_expression.is_constant()
         )
 
-    def eval(self, variable_dict) -> Union[Expression, int]:
+    def eval(self, variable_dict) -> ExpressionOrInt:
         """
         Evaluate parameters, making them ints if possible.
 
@@ -745,38 +755,43 @@ class BinaryOperation(Expression):
         -------
         evaluated expression
         """
-        evaled_left_expr = (
-            mod_3(self._left_expression)
-            if is_integer(self._left_expression)
-            else self._left_expression.eval(variable_dict)
-        )
-        evaled_left_expr = (
-            mod_3(int(evaled_left_expr))
-            if is_integer(evaled_left_expr) or evaled_left_expr.is_constant()
-            else evaled_left_expr
-        )
 
-        evaled_right_expr = (
-            mod_3(self._right_expression)
-            if is_integer(self._right_expression)
-            else self._right_expression.eval(variable_dict)
-        )
-        evaled_right_expr = (
-            int(evaled_right_expr)
-            if is_integer(evaled_right_expr) or evaled_right_expr.is_constant()
-            else evaled_right_expr
-        )
+        def eval_or_reduce(expression: ExpressionOrInt, var_dict) -> ExpressionOrInt:
+            if isinstance(expression, Expression):
+                evaled_expr = expression.eval(var_dict)
+                if isinstance(evaled_expr, Expression):
+                    if evaled_expr.is_constant():
+                        return int(evaled_expr) % 3
+                    else:
+                        return evaled_expr
+                elif is_integer(evaled_expr):
+                    return evaled_expr % 3
+                else:
+                    raise ValueError("unknown error")
+            elif is_integer(expression):
+                return int(expression) % 3
+            else:
+                raise ValueError("unknown error")
+
+        evaled_left_expr = eval_or_reduce(self._left_expression, variable_dict)
+        evaled_right_expr = eval_or_reduce(self._right_expression, variable_dict)
 
         operations = {
-            "PLUS": lambda l, r: l + r,
-            "MINUS": lambda l, r: l - r,
-            "TIMES": lambda l, r: l * r,
-            "EXP": lambda l, r: l ** r,
+            "PLUS": operator.add,
+            "MINUS": operator.sub,
+            "TIMES": operator.mul,
+            "EXP": operator.pow,
         }
         if self._relation_name in operations:
             return operations[self._relation_name](evaled_left_expr, evaled_right_expr)
         else:
             raise Exception(f"cannot evaluate unknown binary op: {self._relation_name}")
+
+    def __int__(self) -> int:
+        if not self.is_constant():
+            raise ValueError("non constant expressions can't be cast to ints")
+
+        return cast(int, self.eval({}))
 
     def __str__(self):
         short_relation_names = {"PLUS": "+", "MINUS": "-", "TIMES": "*", "EXP": "^"}
@@ -981,7 +996,7 @@ class UnaryRelation(Expression):
             relation_name=self._relation_name, expr=rename_helper(self._expr, name_dict)
         )
 
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return self._expr.is_constant()
 
     def eval(self, variable_dict):
@@ -1001,6 +1016,12 @@ class UnaryRelation(Expression):
             raise Exception(
                 "UnaryRelation in bad state with unknown unary relation name"
             )
+
+    def __int__(self) -> int:
+        if not self.is_constant():
+            raise ValueError("non constant expressions can't be cast to ints")
+
+        return cast(int, self.eval({}))
 
     def __str__(self) -> str:
         short_rel_name = str(self._relation_name)
@@ -1146,7 +1167,7 @@ class Monomial(Expression):
     def as_polynomial(self):
         return self
 
-    def is_constant(self):
+    def is_constant(self) -> bool:
         return len(self._power_dict) == 0
 
     def num_variables(self):
@@ -1198,6 +1219,12 @@ class Monomial(Expression):
                 accumulator *= Monomial.as_var(variable) ** self._power_dict[variable]
 
         return accumulator
+
+    def __int__(self) -> int:
+        if not self.is_constant():
+            raise ValueError("non constant expressions can't be cast to ints")
+
+        return cast(int, self.eval({}))
 
     def get_variable_set(self) -> Set[str]:
         """returns a set containing all variable which occur in this monomial"""
@@ -1543,7 +1570,7 @@ class Mod3Poly(Expression):
         if len(self.coeff_dict) == 0:
             self.coeff_dict = {Monomial.unit(): 0}
 
-    def is_constant(self):
+    def is_constant(self) -> bool:
         # possibly unnecessary
         self.__clear_zero_monomials()
         num_nonzero_monomial = len(self.coeff_dict)
