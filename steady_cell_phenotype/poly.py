@@ -17,6 +17,7 @@ PRIME = 3
 MATHML_SANITY = False
 
 ExpressionOrInt = Union[int, "Expression"]
+TruthTable = List[Tuple[Tuple[Tuple[str, int], ...], int]]
 
 
 class Operation(Enum):
@@ -168,7 +169,7 @@ class Expression(object):
     # def __floordiv__(self, other):
     #    raise NotImplementedError("floordiv not implemented")
 
-    def eval(self, variable_dict):
+    def eval(self, variable_dict) -> ExpressionOrInt:
         """
         Evaluates the expression.
 
@@ -375,6 +376,32 @@ class Expression(object):
                 ) * (1 - (free_variable - free_variable_value) ** 2)
         return accumulator
 
+    def as_truth_table(self) -> Tuple[TruthTable, List[int]]:
+        """
+        Output the function as a truth table.
+
+        Returns
+        -------
+        TruthTable
+            a list of (inputs,output) tuples, where the inputs are tuples of (var,val) tuples
+        """
+        free_variables: Tuple[str] = tuple(self.get_variable_set())
+        truth_table: TruthTable = []
+        counts = []
+        for input_values in product(range(3), repeat=len(free_variables)):
+            inputs: Tuple[Tuple[str, int], ...] = tuple(
+                zip(free_variables, input_values)
+            )
+            output: int = (
+                int(self.eval(variable_dict=dict(zip(free_variables, input_values))))
+                % 3
+            )
+            while len(counts) <= output:
+                counts.append(0)
+            counts[output] += 1
+            truth_table.append((inputs, output))
+        return truth_table, counts
+
 
 ####################################################################################################
 
@@ -444,7 +471,7 @@ class Function(Expression):
         ]
         # simplify constants to ints, if possible
         evaluated_expressions = [
-            int(expr) if is_integer(expr) or expr.is_constant() else expr
+            mod_3(int(expr)) if is_integer(expr) or expr.is_constant() else expr
             for expr in evaluated_expressions
         ]
 
@@ -719,18 +746,18 @@ class BinaryOperation(Expression):
         evaluated expression
         """
         evaled_left_expr = (
-            self._left_expression
+            mod_3(self._left_expression)
             if is_integer(self._left_expression)
             else self._left_expression.eval(variable_dict)
         )
         evaled_left_expr = (
-            int(evaled_left_expr)
+            mod_3(int(evaled_left_expr))
             if is_integer(evaled_left_expr) or evaled_left_expr.is_constant()
             else evaled_left_expr
         )
 
         evaled_right_expr = (
-            self._right_expression
+            mod_3(self._right_expression)
             if is_integer(self._right_expression)
             else self._right_expression.eval(variable_dict)
         )
@@ -967,7 +994,7 @@ class UnaryRelation(Expression):
                     is_integer(evaluated_subexpression)
                     or evaluated_subexpression.is_constant()
                 ):
-                    return (-1) * int(evaluated_subexpression)
+                    return mod_3((-1) * int(evaluated_subexpression))
                 else:
                     return (-1) * evaluated_subexpression
         else:
@@ -1169,6 +1196,7 @@ class Monomial(Expression):
                 accumulator *= variable_dict[variable] ** self._power_dict[variable]
             else:
                 accumulator *= Monomial.as_var(variable) ** self._power_dict[variable]
+
         return accumulator
 
     def get_variable_set(self) -> Set[str]:
@@ -1476,7 +1504,7 @@ class Mod3Poly(Expression):
         else:
             return 0
 
-    def eval(self, variable_dict: Dict) -> Expression:
+    def eval(self, variable_dict: Dict) -> ExpressionOrInt:
         """
         Evaluates the polynomial.
 

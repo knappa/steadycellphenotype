@@ -14,12 +14,17 @@ from bs4 import BeautifulSoup
 from bs4.element import ResultSet, Tag
 
 from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
-                                        Monomial)
+                                        Monomial, TruthTable,
+                                        inner_mathml_constant,
+                                        inner_mathml_variable)
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
 
 DEFAULT_COMPARTMENT_NAME = "compartment1"
+
+FORCE_SBML_POLYNOMIAL = False
+SBML_TRUTHTABLE_OUTPUT = True
 
 try:
     # noinspection PyUnresolvedReferences
@@ -941,10 +946,10 @@ class EquationSystem(object):
         sbml_top_tag: Tag = soup.new_tag(
             "sbml",
             attrs={
-                "xmlns": "http://www.sbml.org/sbml/level3/version2/core",
+                "xmlns": "http://www.sbml.org/sbml/level3/version1/core",
                 "level": "3",
-                "version": "2",
-                "xmlns:qual": "http://www.sbml.org/sbml/level3/version2/qual/version1",
+                "version": "1",
+                "xmlns:qual": "http://www.sbml.org/sbml/level3/version1/qual/version1",
                 "qual:required": "true",
             },
         )
@@ -963,6 +968,13 @@ class EquationSystem(object):
         # add species to species list, and transition functions to their own list
         for symbol in self._formula_symbol_table:
             update_formula: ExpressionOrInt = self._equation_dict[symbol]
+
+            # NOTE: I'd prefer if I didn't have to convert the update formula to a polynomial, but
+            # the currently version of SBML-qual uses SBML Level 3 revision 1, which doesn't have
+            # max or min functions. That means that max/min/not formulas get a lossy conversion
+            # when converted to SBML-qual.
+            if FORCE_SBML_POLYNOMIAL and isinstance(update_formula, Expression):
+                update_formula = update_formula.as_polynomial()
 
             if (
                 isinstance(update_formula, Expression)
@@ -1015,21 +1027,147 @@ class EquationSystem(object):
                 function_terms = soup.new_tag("qual:listOfFunctionTerms")
                 transition_tag.append(function_terms)
 
-                function_terms.append(
-                    soup.new_tag("qual:defaultTerm", attrs={"qual:resultLevel": 0})
-                )
+                if SBML_TRUTHTABLE_OUTPUT:
+                    if isinstance(update_formula, int):
+                        function_terms.append(
+                            soup.new_tag(
+                                "qual:defaultTerm",
+                                attrs={"qual:resultLevel": update_formula},
+                            )
+                        )
+                    else:
+                        assert isinstance(update_formula, Expression)
+                        truth_table: TruthTable
+                        truth_table, counts = update_formula.as_truth_table()
 
-                level1_function_term = soup.new_tag(
-                    "qual:functionTerm", attrs={"qual:resultLevel": 1}
-                )
-                level1_function_term.append(update_formula.as_sbml_qual_relation(1))
-                function_terms.append(level1_function_term)
+                        with open("debug/" + str(symbol) + ".txt", "w") as file:
+                            file.write(
+                                (
+                                    ",".join(
+                                        [symbol + "(out)"]
+                                        + [var for var, val in truth_table[0][0]]
+                                    )
+                                )
+                                + "\n"
+                            )
+                            file.writelines(
+                                [
+                                    str(line[1])
+                                    + ","
+                                    + ",".join(str(val) for var, val in line[0])
+                                    + "\n"
+                                    for line in truth_table
+                                ]
+                            )
 
-                level2_function_term = soup.new_tag(
-                    "qual:functionTerm", attrs={"qual:resultLevel": 2}
-                )
-                level2_function_term.append(update_formula.as_sbml_qual_relation(2))
-                function_terms.append(level2_function_term)
+                        default_written = False
+                        # default = 0
+                        if counts[0] > 0:
+                            default_written = True
+                            function_terms.append(
+                                soup.new_tag(
+                                    "qual:defaultTerm", attrs={"qual:resultLevel": 0}
+                                )
+                            )
+
+                        def make_and_term(values: Tuple[Tuple[str, int], ...]) -> Tag:
+                            apply = soup.new_tag("apply")
+                            apply.append(
+                                Tag(
+                                    name="and",
+                                    is_xml=True,
+                                    can_be_empty_element=True,
+                                )
+                            )
+                            for var, val in values:
+                                sub_apply = soup.new_tag("apply")
+                                sub_apply.append(
+                                    Tag(
+                                        name="eq",
+                                        is_xml=True,
+                                        can_be_empty_element=True,
+                                    )
+                                )
+                                sub_apply.append(inner_mathml_variable(var))
+                                sub_apply.append(inner_mathml_constant(val))
+                                apply.append(sub_apply)
+                            return apply
+
+                        # level = 1
+                        if not default_written and counts[1] > 0:
+                            default_written = True
+                            function_terms.append(
+                                soup.new_tag(
+                                    "qual:defaultTerm", attrs={"qual:resultLevel": 1}
+                                )
+                            )
+                        elif counts[1] > 0:
+                            level1_function_term = soup.new_tag(
+                                "qual:functionTerm", attrs={"qual:resultLevel": 1}
+                            )
+                            function_terms.append(level1_function_term)
+                            level1_mathml = soup.new_tag(
+                                "math",
+                                attrs={"xmlns": "http://www.w3.org/1998/Math/MathML"},
+                            )
+                            level1_function_term.append(level1_mathml)
+                            level1_apply = soup.new_tag("apply")
+                            level1_mathml.append(level1_apply)
+                            level1_apply.append(
+                                Tag(name="or", is_xml=True, can_be_empty_element=True)
+                            )
+                        else:
+                            level1_apply = None
+
+                        # level = 2
+                        if not default_written:
+                            function_terms.append(
+                                soup.new_tag(
+                                    "qual:defaultTerm", attrs={"qual:resultLevel": 2}
+                                )
+                            )
+                        elif counts[2] > 0:
+                            level2_function_term = soup.new_tag(
+                                "qual:functionTerm", attrs={"qual:resultLevel": 2}
+                            )
+                            function_terms.append(level2_function_term)
+                            level2_mathml = soup.new_tag(
+                                "math",
+                                attrs={"xmlns": "http://www.w3.org/1998/Math/MathML"},
+                            )
+                            level2_function_term.append(level2_mathml)
+                            level2_apply = soup.new_tag("apply")
+                            level2_mathml.append(level2_apply)
+                            level2_apply.append(
+                                Tag(name="or", is_xml=True, can_be_empty_element=True)
+                            )
+                        else:
+                            level2_apply = None
+
+                        # fill in terms
+                        for inputs, value in truth_table:
+                            if value == 1 and level1_apply is not None:
+                                level1_apply.append(make_and_term(inputs))
+                            elif value == 2 and level2_apply is not None:
+                                level2_apply.append(make_and_term(inputs))
+
+                else:
+                    # here we try to keep the SBML output kind-of like the original functions
+                    function_terms.append(
+                        soup.new_tag("qual:defaultTerm", attrs={"qual:resultLevel": 0})
+                    )
+
+                    level1_function_term = soup.new_tag(
+                        "qual:functionTerm", attrs={"qual:resultLevel": 1}
+                    )
+                    level1_function_term.append(update_formula.as_sbml_qual_relation(1))
+                    function_terms.append(level1_function_term)
+
+                    level2_function_term = soup.new_tag(
+                        "qual:functionTerm", attrs={"qual:resultLevel": 2}
+                    )
+                    level2_function_term.append(update_formula.as_sbml_qual_relation(2))
+                    function_terms.append(level2_function_term)
 
             else:
                 # set constant and initial level flags
