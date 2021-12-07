@@ -70,7 +70,7 @@ python3 -m pip install -e .
 In addition to the browser interface, SteadyCellPhenotype provides a command line tool: `scp_converter.py` for advanced users. This tool allows the user to perform various transformations to a MAX/MIN/NOT/polynomial model, including:
 * generation of a pure-polynomial model, (i.e. conversion of MAX/MIN/NOT formulae to the corresponding polynomial)
 * conversion of some or all formulae to the corresponding continuous version, 
-* generation of a "self-power" of the system, i.e. $F^n = \underbrace{F \circ \cdots \circ F}_{n}$ suitable for 
+* generation of a "self-power" of the system, i.e. ![$F^n = \underbrace{F \circ \cdots \circ F}_{n}$](./images/math1.svg) suitable for computing cycles as fixed points of the composed system.
 * generation of several C language programs derived from the model:
   * a simulator which runs the system on a random sample of initial conditions, searching for attractors
   * a simulator which does a complete state space search of the system, searching for attractors
