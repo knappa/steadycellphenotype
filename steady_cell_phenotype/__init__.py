@@ -36,10 +36,11 @@ from steady_cell_phenotype._util import (error_report, get_model_variables,
 from steady_cell_phenotype.equation_system import ParseError
 from steady_cell_phenotype.session_data_cache import SessionDataCache
 
-matplotlib.use("agg")
-
 
 def create_app(test_config=None):
+
+    matplotlib.use("agg")
+
     # create and configure the app
     app = Flask(__name__, instance_relative_config=True)
 
