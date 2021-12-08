@@ -109,3 +109,6 @@ optional arguments:
                         take a long time!
 ```
 
+[![Python package](https://github.com/knappa/steadycellphenotype/actions/workflows/python-package.yml/badge.svg)](https://github.com/knappa/steadycellphenotype/actions/workflows/python-package.yml)
+
+[![Upload Python Package](https://github.com/knappa/steadycellphenotype/actions/workflows/python-publish.yml/badge.svg)](https://github.com/knappa/steadycellphenotype/actions/workflows/python-publish.yml)
