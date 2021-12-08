@@ -1,0 +1,3 @@
+alpha=MIN(beta,alpha)
+beta=MAX(alpha,gamma)
+gamma=alpha+beta
