@@ -1,0 +1,27 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+numpy = "~=1.20.0"
+numba = "~=0.54.1"
+attrs = "~=21.2.0"
+matplotlib = "~=3.4.1"
+pathos = "~=0.2.7"
+networkx = ">=2.5.1"
+beautifulsoup4 = "~=4.10.0"
+lxml = "~=4.6.4"
+Flask = "~=2.0.2"
+Werkzeug = "~=2.0.2"
+steady-cell-phenotype = {editable = true, path = "."}
+ipython = "*"
+jupyter = "*"
+scipy = "*"
+setuptools-scm = "*"
+
+[dev-packages]
+black = "==21.12b0"
+
+[requires]
+python_version = "3.9"
