@@ -16,7 +16,8 @@ from bs4.element import ResultSet, Tag
 from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
                                         Monomial, TruthTable,
                                         inner_mathml_constant,
-                                        inner_mathml_variable)
+                                        inner_mathml_variable, is_integer,
+                                        mod_3)
 
 UNIVARIATE_FUNCTIONS = ["NOT"]
 BIVARIATE_FUNCTIONS = ["MAX", "MIN", "CONT"]
@@ -312,7 +313,7 @@ def evaluate_parallel_helper(pair, mapping_dict):
     if isinstance(expression, int) or expression.is_constant():
         return variable_name, expression
     else:
-        return variable_name, expression.eval(mapping_dict)
+        return variable_name, expression.full_eval(mapping_dict)
 
 
 def continuity_helper(
@@ -653,11 +654,13 @@ class EquationSystem(object):
     _formula_symbol_table: List[str] = attrib()
     _equation_dict: Dict[str, ExpressionOrInt] = attrib()
     _lines: List[Tuple[Optional[str], Optional[str]]] = attrib()
+    _is_dependant: bool = attrib(default=False)
 
     # _lines: Tuples of variable name and comment, both optional, for printing
 
     def __init__(
         self,
+        is_dependant: bool,
         *,
         formula_symbol_table: List[str] = None,
         equation_dict: Dict[str, ExpressionOrInt] = None,
@@ -680,6 +683,8 @@ class EquationSystem(object):
                 " or both formula_symbol_table and equation_dict"
             )
 
+        self._is_dependant = is_dependant
+
     @staticmethod
     def from_text(lines: str) -> EquationSystem:
         """
@@ -689,7 +694,7 @@ class EquationSystem(object):
         -------
         EquationSystem
         """
-        equation_system: EquationSystem = EquationSystem()
+        equation_system: EquationSystem = EquationSystem(is_dependant=False)
         for line_number, line in enumerate(lines.strip().splitlines()):
             equation_system.parse_and_add_equation(line, line_number=line_number + 1)
         return equation_system
@@ -840,7 +845,10 @@ class EquationSystem(object):
         lines = [(symbol, None) for symbol in symbols]
 
         return EquationSystem(
-            formula_symbol_table=symbols, equation_dict=equations, lines=lines
+            formula_symbol_table=symbols,
+            equation_dict=equations,
+            lines=lines,
+            is_dependant=False,
         )
 
     def as_poly_system(self) -> EquationSystem:
@@ -851,6 +859,7 @@ class EquationSystem(object):
         }
 
         return EquationSystem(
+            is_dependant=self._is_dependant,
             formula_symbol_table=formula_symbol_table,
             equation_dict=equation_dict,
             lines=deepcopy(self._lines),
@@ -891,8 +900,8 @@ class EquationSystem(object):
 
     ################################################################################################
 
-    def eval(self, state: Dict[str, int]) -> Dict[str, int]:
-        if state.keys() != set(self._equation_dict.keys()):
+    def full_eval(self, state: Dict[str, int]) -> Dict[str, int]:
+        if set(state.keys()) != set(self._equation_dict.keys()):
             raise RuntimeError("Evaluating state on incorrect set of variables")
         return {
             variable: formula.eval(state)
@@ -902,6 +911,178 @@ class EquationSystem(object):
             else formula
             for variable, formula in self._equation_dict.items()
         }
+
+    def eval(self, state: Dict[str, ExpressionOrInt]) -> EquationSystem:
+        if not (
+            self._is_dependant or (set(state.keys()) <= set(self._equation_dict.keys()))
+        ):
+            raise RuntimeError("Evaluating state on incorrect set of variables")
+
+        return EquationSystem(
+            is_dependant=self._is_dependant,
+            formula_symbol_table=self._formula_symbol_table.copy(),
+            equation_dict={
+                variable: formula.eval(state)
+                if isinstance(formula, Expression)
+                else mod_3(formula)
+                if is_integer(formula)
+                else formula
+                for variable, formula in self._equation_dict.items()
+            },
+        )
+
+    ################################################################################################
+
+    def __len__(self):
+        return len(self._equation_dict)
+
+    def is_variable_purely_dependant(self, variable: str) -> bool:
+        """
+        Determine if `variable` is of the form variable=const or variable=f(other_var).
+
+        Parameters
+        ----------
+        variable: str
+            The variable to query
+
+        Returns
+        -------
+        bool
+        """
+        if variable not in self._equation_dict.keys():
+            raise RuntimeError(f"Variable {variable} not present in this system")
+
+        equation = self._equation_dict[variable]
+        if is_integer(equation):
+            return True
+
+        eqn_var_set = equation.get_variable_set()
+        return variable not in eqn_var_set and len(eqn_var_set) <= 1
+
+    def add_equation(self, variable: str, function: ExpressionOrInt):
+        """
+        Add an equation to the system.
+
+        Very little sanity checking done!
+
+        Parameters
+        ----------
+        variable: str
+            target variable
+        function: ExpressionOrInt
+            the update for this
+
+        Returns
+        -------
+        None
+        """
+        if variable in self._equation_dict:
+            raise RuntimeError(f"{variable} already has a function in this system")
+
+        if is_integer(function) or function.is_constant():
+            if variable not in self._formula_symbol_table:
+                self._formula_symbol_table.append(variable)
+        else:
+            new_var_set = [variable] + list(function.get_variable_set())
+            self._formula_symbol_table += [
+                var for var in new_var_set if var not in self._formula_symbol_table
+            ]
+
+        self._lines.append((variable, None))
+        self._equation_dict[variable] = function
+
+    def reduce_purely_dependant_variable(
+        self,
+        variable: str,
+    ) -> Tuple[EquationSystem, ExpressionOrInt]:
+        """
+        Construct an EquationSystem with `variable` eliminated by substitution.
+
+        Parameters
+        ----------
+        variable: str
+            A variable of the system whose update is of the form variable=const or
+            variable=f(other_variable).
+
+        Returns
+        -------
+        reduced equation system and functional dependancies for `variable`
+        """
+        if not self.is_variable_purely_dependant(variable):
+            raise RuntimeError(
+                f"Variable {variable} depends on itself or 2 or more other variables"
+            )
+
+        # using eval, reduced system will include the target variable which we should eliminate
+        reduced_system = self.eval({variable: self._equation_dict[variable]})
+        reduced_system = EquationSystem(
+            is_dependant=self._is_dependant,
+            formula_symbol_table=[
+                var for var in reduced_system._formula_symbol_table if var != variable
+            ],
+            equation_dict={
+                var: eqn
+                for var, eqn in reduced_system._equation_dict.items()
+                if var != variable
+            },
+        )
+
+        return reduced_system, self._equation_dict[variable]
+
+    def reduce_all_purely_dependant_variables(
+        self, dependant_system: EquationSystem = None
+    ) -> Tuple[EquationSystem, EquationSystem]:
+        """
+        Construct an EquationSystem where all substitutable variables have been eliminated.
+
+        Returns
+        -------
+        EquationSystem
+        """
+        eqn_sys = self
+        dependant_system = (
+            EquationSystem(is_dependant=True)
+            if dependant_system is None
+            else dependant_system
+        )
+        if not dependant_system._is_dependant:
+            raise RuntimeError(
+                "The dependant system isn't flagged as a dependant system"
+            )
+
+        single_input_var = ""
+        while single_input_var is not None:
+            single_input_var = None
+
+            for output_var, eqn in eqn_sys:
+                if (
+                    isinstance(eqn, int)
+                    or eqn.is_constant()
+                    or (
+                        eqn.num_variables() == 1
+                        and eqn_sys.is_variable_purely_dependant(output_var)
+                    )
+                ):
+                    single_input_var = output_var
+
+            if single_input_var is not None:
+                (
+                    eqn_sys,
+                    functional_dependancy,
+                ) = eqn_sys.reduce_purely_dependant_variable(single_input_var)
+                # we eval the dependant system to be sure that it's still only dependant on the
+                # "active" parts of the model
+                dependant_system = dependant_system.eval(
+                    {single_input_var: functional_dependancy}
+                )
+                dependant_system.add_equation(single_input_var, functional_dependancy)
+
+        return eqn_sys, dependant_system
+
+    def find_all_fixed_points(self) -> List[Dict[str, int]]:
+        pass
+
+
 
     ################################################################################################
 
@@ -1240,6 +1421,7 @@ class EquationSystem(object):
                 for control_variable, equation in self._equation_dict.items()
             }
         return EquationSystem(
+            is_dependant=self._is_dependant,
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
             lines=self._lines,
@@ -1274,6 +1456,7 @@ class EquationSystem(object):
         }
 
         return EquationSystem(
+            is_dependant=self._is_dependant,
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=continuous_equations,
             lines=self._lines,
@@ -1306,6 +1489,7 @@ class EquationSystem(object):
         }
 
         return EquationSystem(
+            is_dependant=self._is_dependant,
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=equations,
             lines=self._lines,
@@ -1331,6 +1515,7 @@ class EquationSystem(object):
             equation_dict[var] = int(val) % 3
 
         return EquationSystem(
+            is_dependant=self._is_dependant,
             formula_symbol_table=self._formula_symbol_table,
             equation_dict=equation_dict,
             lines=self._lines,
@@ -1363,6 +1548,7 @@ class EquationSystem(object):
             }
 
         return EquationSystem(
+            is_dependant=self._is_dependant and other._is_dependant,
             formula_symbol_table=deepcopy(self._formula_symbol_table),
             equation_dict=composed_dict,
         )
@@ -1373,6 +1559,7 @@ class EquationSystem(object):
         if count == 0:
             # every variable maps to itself in the identity map.
             return EquationSystem(
+                is_dependant=self._is_dependant,
                 formula_symbol_table=self._formula_symbol_table,
                 equation_dict={
                     var: Monomial.as_var(var) for var in self._equation_dict.keys()
@@ -1394,6 +1581,10 @@ class EquationSystem(object):
     def __str__(self):
         if len(self._equation_dict) == 0:
             return "Empty System"
+        elif self._is_dependant:
+            return "\n".join(
+                str(var) + "=" + str(eqn) for var, eqn in self._equation_dict.items()
+            )
         else:
             return "\n".join(
                 [
