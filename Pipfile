@@ -11,7 +11,7 @@ matplotlib = "~=3.4.1"
 pathos = "~=0.2.7"
 networkx = ">=2.5.1"
 beautifulsoup4 = "~=4.10.0"
-lxml = "~=4.6.4"
+lxml = "~=4.6.5"
 Flask = "~=2.0.2"
 Werkzeug = "~=2.0.2"
 steady-cell-phenotype = {editable = true, path = "."}
