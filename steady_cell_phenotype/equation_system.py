@@ -670,9 +670,16 @@ class EquationSystem(object):
             self._formula_symbol_table = deepcopy(formula_symbol_table)
             self._equation_dict = deepcopy(equation_dict)
             if lines is None:
-                self._lines = [(symbol, None) for symbol in formula_symbol_table]
+                self._lines = [
+                    (symbol, None) for symbol, eqn in self._equation_dict.items()
+                ]
             else:
-                self._lines = deepcopy(lines)
+                self._lines = [
+                    (None, line)
+                    if symbol is None or symbol not in self._equation_dict
+                    else (symbol, line)
+                    for symbol, line in lines
+                ]
         elif formula_symbol_table is None and equation_dict is None:
             self._formula_symbol_table = []
             self._equation_dict = dict()
@@ -913,14 +920,9 @@ class EquationSystem(object):
         }
 
     def eval(self, state: Dict[str, ExpressionOrInt]) -> EquationSystem:
-        if not (
-            self._is_dependant or (set(state.keys()) <= set(self._equation_dict.keys()))
-        ):
-            raise RuntimeError("Evaluating state on incorrect set of variables")
-
         return EquationSystem(
             is_dependant=self._is_dependant,
-            formula_symbol_table=self._formula_symbol_table.copy(),
+            formula_symbol_table=deepcopy(self._formula_symbol_table),
             equation_dict={
                 variable: formula.eval(state)
                 if isinstance(formula, Expression)
@@ -936,14 +938,16 @@ class EquationSystem(object):
     def __len__(self):
         return len(self._equation_dict)
 
-    def is_variable_purely_dependant(self, variable: str) -> bool:
+    def is_variable_dependant(self, variable: str, dependancy_order: int = 1) -> bool:
         """
-        Determine if `variable` is of the form variable=const or variable=f(other_var).
+        Determine if `variable` is of the form variable=const or variable=f(other_vars).
 
         Parameters
         ----------
         variable: str
             The variable to query
+        dependancy_order: int
+            maximum number of other variables we have as dependencies
 
         Returns
         -------
@@ -956,8 +960,11 @@ class EquationSystem(object):
         if is_integer(equation):
             return True
 
-        eqn_var_set = equation.get_variable_set()
-        return variable not in eqn_var_set and len(eqn_var_set) <= 1
+        eqn_variable_set = equation.get_variable_set()
+        return (
+            variable not in eqn_variable_set
+            and len(eqn_variable_set) <= dependancy_order
+        )
 
     def add_equation(self, variable: str, function: ExpressionOrInt):
         """
@@ -977,7 +984,10 @@ class EquationSystem(object):
         None
         """
         if variable in self._equation_dict:
-            raise RuntimeError(f"{variable} already has a function in this system")
+            raise RuntimeError(
+                f"{variable} already has a function in this system: \n"
+                f"{self}\n{variable}\n{function}"
+            )
 
         if is_integer(function) or function.is_constant():
             if variable not in self._formula_symbol_table:
@@ -991,9 +1001,10 @@ class EquationSystem(object):
         self._lines.append((variable, None))
         self._equation_dict[variable] = function
 
-    def reduce_purely_dependant_variable(
+    def reduce_dependant_variable(
         self,
         variable: str,
+        dependancy_order: int = 1,
     ) -> Tuple[EquationSystem, ExpressionOrInt]:
         """
         Construct an EquationSystem with `variable` eliminated by substitution.
@@ -1002,15 +1013,16 @@ class EquationSystem(object):
         ----------
         variable: str
             A variable of the system whose update is of the form variable=const or
-            variable=f(other_variable).
+            variable=f(other_variables).
 
         Returns
         -------
         reduced equation system and functional dependancies for `variable`
         """
-        if not self.is_variable_purely_dependant(variable):
+        if not self.is_variable_dependant(variable, dependancy_order=dependancy_order):
             raise RuntimeError(
-                f"Variable {variable} depends on itself or 2 or more other variables"
+                f"Variable {variable} depends on itself or "
+                f"more than {dependancy_order} other variables"
             )
 
         # using eval, reduced system will include the target variable which we should eliminate
@@ -1029,15 +1041,17 @@ class EquationSystem(object):
 
         return reduced_system, self._equation_dict[variable]
 
-    def reduce_all_purely_dependant_variables(
-        self, dependant_system: EquationSystem = None
+    def reduce_all_dependant_variables(
+        self,
+        dependant_system: EquationSystem = None,
+        dependancy_order: int = 1,
     ) -> Tuple[EquationSystem, EquationSystem]:
         """
         Construct an EquationSystem where all substitutable variables have been eliminated.
 
         Returns
         -------
-        EquationSystem
+        Tuple of the reduced system and the depenent system
         """
         eqn_sys = self
         dependant_system = (
@@ -1050,39 +1064,178 @@ class EquationSystem(object):
                 "The dependant system isn't flagged as a dependant system"
             )
 
-        single_input_var = ""
-        while single_input_var is not None:
-            single_input_var = None
+        dependant_var = ""
+        while dependant_var is not None:
+            dependant_var = None
 
+            # find a dependant variable. i.e. output_var=const or output_var=f(other_vars)
             for output_var, eqn in eqn_sys:
                 if (
                     isinstance(eqn, int)
                     or eqn.is_constant()
-                    or (
-                        eqn.num_variables() == 1
-                        and eqn_sys.is_variable_purely_dependant(output_var)
+                    or eqn_sys.is_variable_dependant(
+                        output_var, dependancy_order=dependancy_order
                     )
                 ):
-                    single_input_var = output_var
+                    dependant_var = output_var
+                    break
 
-            if single_input_var is not None:
-                (
-                    eqn_sys,
-                    functional_dependancy,
-                ) = eqn_sys.reduce_purely_dependant_variable(single_input_var)
+            if dependant_var is not None:
+                # remove the dependant variable from the system and get its dependancy relation
+                # i.e. the f(other_var) in dependant_var = f(other_vars)
+                (eqn_sys, functional_dependancy,) = eqn_sys.reduce_dependant_variable(
+                    dependant_var, dependancy_order=dependancy_order
+                )
+
                 # we eval the dependant system to be sure that it's still only dependant on the
                 # "active" parts of the model
                 dependant_system = dependant_system.eval(
-                    {single_input_var: functional_dependancy}
+                    {dependant_var: functional_dependancy}
                 )
-                dependant_system.add_equation(single_input_var, functional_dependancy)
+                dependant_system.add_equation(dependant_var, functional_dependancy)
 
         return eqn_sys, dependant_system
 
-    def find_all_fixed_points(self) -> List[Dict[str, int]]:
-        pass
+    def constant_system_to_dict(self) -> Dict[str, int]:
+        const_dict = dict()
+        for var, eqn in self._equation_dict.items():
+            if is_integer(eqn):
+                const_dict[var] = int(eqn)
+            elif isinstance(eqn, Expression):
+                if eqn.is_constant():
+                    const_dict[var] = int(eqn)
+                else:
+                    raise RuntimeError(
+                        f"Non constant expression {eqn}, cannot convert to constant dict"
+                    )
+            else:
+                raise RuntimeError(f"Unknown value {eqn} in equation system")
+        return const_dict
 
+    def find_all_fixed_points(
+        self, dependant_system: EquationSystem = None
+    ) -> List[Dict[str, int]]:
+        if dependant_system is None:
+            dependant_system = EquationSystem(is_dependant=True)
+            # TODO: is the below true?
+            # it may be useful to put the equatation system in polynomial form, which is canonical
+            # in the sense that any formula which does not depend on a variable does not have that
+            # variable as a term. We lose a little bit of pretty-printing this way, but them's the
+            # breaks.
+            equation_system = self.as_poly_system()
+        else:
+            equation_system = self
 
+        # reduce all variables that can be removed by substitution
+        reduced_eqn_sys: EquationSystem
+        functional_deps: EquationSystem
+        (
+            reduced_eqn_sys,
+            functional_deps,
+        ) = equation_system.reduce_all_dependant_variables(dependancy_order=1)
+        # Note: we can't let this dependancy_order get too big. Otherwise the polynomials get
+        # overly complicated. 1 doesn't change the "size" of the polynomial.
+
+        if len(reduced_eqn_sys) == 0:
+            # if variable reduction cleared everything (maybe can happen with cancellations)
+            # then we use that reduced system to evaluate the dependant system. Combined,
+            # they give a single fixed point.
+            constants = functional_deps.constant_system_to_dict()
+            evaled_system = dependant_system.eval(constants)
+            constants.update(evaled_system.constant_system_to_dict())
+            return [constants]
+
+        # add all the functional deps to the dependant system
+        for removed_var, eqn in functional_deps._equation_dict.items():
+            dependant_system = dependant_system.eval({removed_var: eqn})
+            dependant_system.add_equation(removed_var, eqn)
+
+        # reduce everything that looks like var=f(var)
+        singlets = (
+            var
+            for var, eqn in reduced_eqn_sys._equation_dict.items()
+            if eqn.num_variables() == 1 and eqn.get_variable_set() == {var}
+        )
+        singlet = next(singlets, None)
+        # if we find one of these var=f(var)
+        if singlet is not None:
+            found_fixed_points = []
+            for value in range(3):
+                evaled_system: EquationSystem = reduced_eqn_sys.eval({singlet: value})
+                if evaled_system[singlet] == value:
+                    # this will be a consistent system, at least so far
+                    dependant_system_copy = dependant_system.eval({singlet: value})
+                    dependant_system_copy.add_equation(singlet, value)
+                    evaled_system_minus_var = EquationSystem(
+                        is_dependant=self._is_dependant,
+                        formula_symbol_table=[
+                            var
+                            for var in evaled_system._formula_symbol_table
+                            if var != singlet
+                        ],
+                        equation_dict={
+                            var: eqn
+                            for var, eqn in evaled_system._equation_dict.items()
+                            if var != singlet
+                        },
+                    )
+                    found_fixed_points.extend(
+                        evaled_system_minus_var.find_all_fixed_points(
+                            dependant_system_copy
+                        )
+                    )
+            return found_fixed_points
+
+        # if you make it here, there were no singlets. So all functions are of the form
+        # var = f(var_1, var_2, ... , var_n) where one of the var_i could be var.
+
+        # We will make a trial assignment of {0,1,2} -> var, filtering the results after they are
+        # returned for consistancy with update function
+
+        # Note: this code chooses the variable to reduce based on the heuristic that clearing out
+        # a highly connected variable will lead to a larger number of "easy" simplification on
+        # the next round. We could probably make an even smarted choice using graph theory.
+        # TODO: what can networkx do for us here?
+        sized_eqns = [
+            (len(eqn.get_variable_set() | {var}), var)
+            if isinstance(eqn, Expression)
+            else (1, var)
+            for var, eqn in reduced_eqn_sys._equation_dict.items()
+        ]
+        sized_eqns.sort(reverse=True)
+
+        count, removed_var = sized_eqns[0]
+        removed_eqn = reduced_eqn_sys._equation_dict[removed_var]
+        partial_eqn_sys = EquationSystem(
+            is_dependant=reduced_eqn_sys._is_dependant,
+            formula_symbol_table=reduced_eqn_sys._formula_symbol_table,
+            equation_dict={
+                var: eqn
+                for var, eqn in reduced_eqn_sys._equation_dict.items()
+                if var != removed_var
+            },
+            lines=None,
+        )
+
+        found_fixed_points = []
+        for value in range(3):
+            resolved_partial_eqn_sys: EquationSystem = partial_eqn_sys.eval(
+                {removed_var: value}
+            )
+            dependant_system_copy = dependant_system.eval({removed_var: value})
+            dependant_system_copy.add_equation(removed_var, value)
+            potential_fixed_points = resolved_partial_eqn_sys.find_all_fixed_points(
+                dependant_system_copy
+            )
+            found_fixed_points.extend(
+                (
+                    fixed_pt
+                    for fixed_pt in potential_fixed_points
+                    if removed_eqn.eval(fixed_pt) == value
+                )
+            )
+
+        return found_fixed_points
 
     ################################################################################################
 
