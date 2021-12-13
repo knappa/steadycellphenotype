@@ -41,11 +41,6 @@ Assuming that you are in the top directory of this project. This will open up a 
 The flask documentation contains info on how to get the thing working for remote users.  [Flask
 documentation](https://flask.palletsprojects.com/en/1.1.x/)
 
-### Note:
-
-Instructions on obtaining Macaulay2 are [here](http://www2.macaulay2.com/Macaulay2/Downloads/). In particular, [here](http://www2.macaulay2.com/Macaulay2/Downloads/GNU-Linux/Debian/index.html) is where you can get Debian packages. 
-
-
 ## Using a virtual environment
 
 If you encounter compatibility errors between various python and package versions on your computer, it may be useful to create a virtual environment with project-specific versions. (e.g. as of this writing there are issues with the current versions of numba and python 3.9 on macOS.) To create a virtual environment, first find the desired version of python on your machine. (We assume 3.8 below.) _Hint_: On macOS and Linux, we can use
