@@ -6,7 +6,8 @@ from functools import partial, reduce
 from html import escape
 from itertools import product
 from math import floor
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union, cast
+from typing import (Callable, Dict, List, Optional, Sequence, Set, Tuple,
+                    Union, cast)
 
 import numpy as np
 from attr import attrib, attrs
@@ -1014,6 +1015,8 @@ class EquationSystem(object):
         variable: str
             A variable of the system whose update is of the form variable=const or
             variable=f(other_variables).
+        dependancy_order
+            Specify how many variables occur in `other_variables`. Default: 1
 
         Returns
         -------
@@ -1112,6 +1115,38 @@ class EquationSystem(object):
                 raise RuntimeError(f"Unknown value {eqn} in equation system")
         return const_dict
 
+    def output_vars(self) -> Set[str]:
+        count_as_input = {var: 0 for var in self._equation_dict.keys()}
+        for var in self.symbol_table():
+            for out_var, eqn in self._equation_dict.items():
+                if is_integer(eqn):
+                    continue
+                if var in eqn.get_variable_set() and var in self._equation_dict:
+                    count_as_input[var] += 1
+        return {var for var, count in count_as_input.items() if count == 0}
+
+    def separate_output_variables(self) -> Tuple[EquationSystem, EquationSystem]:
+        # find all the variables which only occur as an output
+        pure_outputs = self.output_vars()
+
+        dependant_equations = {
+            var: eqn for var, eqn in self._equation_dict.items() if var in pure_outputs
+        }
+        dependant_system = EquationSystem(is_dependant=True)
+        for var, eqn in dependant_equations.items():
+            dependant_system.add_equation(var, eqn)
+
+        independant_equations = {
+            var: eqn
+            for var, eqn in self._equation_dict.items()
+            if var not in pure_outputs
+        }
+        rest_of_system = EquationSystem(is_dependant=self._is_dependant)
+        for var, eqn in independant_equations.items():
+            rest_of_system.add_equation(var, eqn)
+
+        return rest_of_system, dependant_system
+
     def find_all_fixed_points(
         self, dependant_system: EquationSystem = None
     ) -> List[Dict[str, int]]:
@@ -1126,17 +1161,28 @@ class EquationSystem(object):
         else:
             equation_system = self
 
+        while len(equation_system.output_vars()) > 0:
+            # reduce all output variables. i.e. variables which are never 'read', only set
+            functional_deps: EquationSystem
+            (
+                equation_system,
+                functional_deps,
+            ) = equation_system.separate_output_variables()
+
+            # add all the functional deps from output variables to the dependant system
+            for removed_var, eqn in functional_deps._equation_dict.items():
+                dependant_system = dependant_system.eval({removed_var: eqn})
+                dependant_system.add_equation(removed_var, eqn)
+
         # reduce all variables that can be removed by substitution
-        reduced_eqn_sys: EquationSystem
-        functional_deps: EquationSystem
         (
-            reduced_eqn_sys,
+            equation_system,
             functional_deps,
         ) = equation_system.reduce_all_dependant_variables(dependancy_order=1)
         # Note: we can't let this dependancy_order get too big. Otherwise the polynomials get
         # overly complicated. 1 doesn't change the "size" of the polynomial.
 
-        if len(reduced_eqn_sys) == 0:
+        if len(equation_system) == 0:
             # if variable reduction cleared everything (maybe can happen with cancellations)
             # then we use that reduced system to evaluate the dependant system. Combined,
             # they give a single fixed point.
@@ -1153,7 +1199,7 @@ class EquationSystem(object):
         # reduce everything that looks like var=f(var)
         singlets = (
             var
-            for var, eqn in reduced_eqn_sys._equation_dict.items()
+            for var, eqn in equation_system._equation_dict.items()
             if eqn.num_variables() == 1 and eqn.get_variable_set() == {var}
         )
         singlet = next(singlets, None)
@@ -1161,7 +1207,7 @@ class EquationSystem(object):
         if singlet is not None:
             found_fixed_points = []
             for value in range(3):
-                evaled_system: EquationSystem = reduced_eqn_sys.eval({singlet: value})
+                evaled_system: EquationSystem = equation_system.eval({singlet: value})
                 if evaled_system[singlet] == value:
                     # this will be a consistent system, at least so far
                     dependant_system_copy = dependant_system.eval({singlet: value})
@@ -1194,24 +1240,25 @@ class EquationSystem(object):
 
         # Note: this code chooses the variable to reduce based on the heuristic that clearing out
         # a highly connected variable will lead to a larger number of "easy" simplification on
-        # the next round. We could probably make an even smarted choice using graph theory.
-        # TODO: what can networkx do for us here?
+        # the next round. We could probably make an even smarter choice using graph theory. i.e.
+        # find a vertex which cuts
+        # TODO: can networkx do anything for us here?
         sized_eqns = [
             (len(eqn.get_variable_set() | {var}), var)
             if isinstance(eqn, Expression)
             else (1, var)
-            for var, eqn in reduced_eqn_sys._equation_dict.items()
+            for var, eqn in equation_system._equation_dict.items()
         ]
         sized_eqns.sort(reverse=True)
-
         count, removed_var = sized_eqns[0]
-        removed_eqn = reduced_eqn_sys._equation_dict[removed_var]
+
+        removed_eqn = equation_system._equation_dict[removed_var]
         partial_eqn_sys = EquationSystem(
-            is_dependant=reduced_eqn_sys._is_dependant,
-            formula_symbol_table=reduced_eqn_sys._formula_symbol_table,
+            is_dependant=equation_system._is_dependant,
+            formula_symbol_table=equation_system._formula_symbol_table,
             equation_dict={
                 var: eqn
-                for var, eqn in reduced_eqn_sys._equation_dict.items()
+                for var, eqn in equation_system._equation_dict.items()
                 if var != removed_var
             },
             lines=None,
