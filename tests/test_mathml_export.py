@@ -32,8 +32,8 @@ def test_roundtrip():
         system_vars: Tuple[str] = eqn_sys.target_variables()
         for vals in product(range(3), repeat=len(system_vars)):
             params = dict(zip(system_vars, vals))
-            eqn_eval = eqn_sys.eval(params)
-            sbml_eval = sbml_sys.eval(params)
+            eqn_eval = eqn_sys.full_eval(params)
+            sbml_eval = sbml_sys.full_eval(params)
             assert all(eqn_eval[var] == sbml_eval[var] for var in system_vars)
 
 
