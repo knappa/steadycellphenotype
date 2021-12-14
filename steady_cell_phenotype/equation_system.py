@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 from bs4.element import ResultSet, Tag
 
 from steady_cell_phenotype.poly import (Expression, ExpressionOrInt, Function,
-                                        Monomial, TruthTable,
+                                        Mod3Poly, Monomial, TruthTable,
                                         inner_mathml_constant,
                                         inner_mathml_variable, is_integer,
                                         mod_3)
@@ -862,7 +862,10 @@ class EquationSystem(object):
     def as_poly_system(self) -> EquationSystem:
         formula_symbol_table = deepcopy(self._formula_symbol_table)
         equation_dict = {
-            target_var: eqn.as_polynomial() if isinstance(eqn, Expression) else eqn
+            target_var: eqn.as_polynomial()
+            if isinstance(eqn, Expression)
+            and not (isinstance(eqn, Mod3Poly) or isinstance(eqn, Monomial))
+            else eqn
             for target_var, eqn in self._equation_dict.items()
         }
 
@@ -1278,7 +1281,7 @@ class EquationSystem(object):
                 (
                     fixed_pt
                     for fixed_pt in potential_fixed_points
-                    if removed_eqn.eval(fixed_pt) == value
+                    if int(removed_eqn.eval(fixed_pt)) == value
                 )
             )
 
