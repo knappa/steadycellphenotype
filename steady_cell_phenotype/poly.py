@@ -4,7 +4,7 @@ import operator
 from copy import copy
 from enum import Enum
 from itertools import product
-from typing import Dict, List, Set, Tuple, Union, cast
+from typing import Dict, List, Optional, Set, Tuple, Union, cast
 
 import numpy as np
 from attr import attrib, attrs
@@ -1135,6 +1135,7 @@ class Monomial(Expression):
     """A class to encapsulate monomials reduced by x^3-x==0 for all variables x"""
 
     _power_dict: Dict[str, int] = attrib()
+    _hash_val: Optional[int] = attrib(default=None)
 
     def __init__(self, power_dict: Dict[str, int]):
         # copy over only those terms which actually appear
@@ -1148,6 +1149,8 @@ class Monomial(Expression):
             # while self._power_dict[var] >= 3:
             #    self._power_dict[var] -= 2     <--- replace with below
             self._power_dict[var] = 1 + ((-1 + self._power_dict[var]) % 2)
+
+        self._hash_val = None
 
     def rename_variables(self, name_dict: Dict[str, str]):
         # this ends up a little more complicated than I was originally thinking, b/c
@@ -1316,7 +1319,7 @@ class Monomial(Expression):
     def __eq__(self, other):
         if type(other) == str:
             other = Monomial.as_var(other)
-        if type(other) == Monomial:
+        if isinstance(other, Monomial):
             return self._power_dict == other._power_dict
         elif type(other) == Mod3Poly:
             if len(other.coeff_dict) == 1:
@@ -1397,9 +1400,9 @@ class Monomial(Expression):
         return True
 
     def __hash__(self):
-        return sum(hash(k) for k in self._power_dict.keys()) + sum(
-            hash(v) for v in self._power_dict.values()
-        )
+        if self._hash_val is None:
+            self._hash_val = sum(hash(k) + hash(v) for k, v in self._power_dict.items())
+        return self._hash_val
 
     def __str__(self):
         if self._power_dict == {}:
@@ -1486,11 +1489,9 @@ class Mod3Poly(Expression):
     coeff_dict: Dict[Monomial, int] = attrib()
 
     def __init__(self, coeffs: Union[Dict, int]):
-        if type(coeffs) == dict:
+        if isinstance(coeffs, dict):
             self.coeff_dict = {
-                monomial: coeffs[monomial]
-                for monomial in coeffs
-                if coeffs[monomial] != 0
+                monomial: coeff for monomial, coeff in coeffs.items() if coeff != 0
             }
         elif is_integer(coeffs):
             self.coeff_dict = {Monomial.unit(): (coeffs % 3)}
@@ -1555,8 +1556,9 @@ class Mod3Poly(Expression):
     def get_variable_set(self) -> Set[str]:
         """return a set containing all variables which occur in this polynomial"""
         var_set = set()
-        for monomial in self.coeff_dict:
-            var_set = var_set.union(monomial.get_variable_set())
+        for monomial, coeff in self.coeff_dict.items():
+            if coeff != 0:
+                var_set = var_set.union(monomial.get_variable_set())
         return var_set
 
     def __clear_zero_monomials(self):
@@ -1773,7 +1775,6 @@ class Mod3Poly(Expression):
         )
 
     def _make_inner_mathml(self) -> Tag:
-
         num_terms = len(self.coeff_dict)
 
         if num_terms == 0:
