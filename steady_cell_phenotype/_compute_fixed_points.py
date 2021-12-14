@@ -1,5 +1,6 @@
 from typing import Dict, List
 
+from _util import message
 from flask import make_response, render_template
 
 from steady_cell_phenotype.equation_system import EquationSystem
@@ -20,6 +21,9 @@ def compute_fixed_points(
     fixed_points: List[List[int]] = list(
         map(lambda fp: [fp[var] for var in variables], fixed_points_dict)
     )
+
+    if len(fixed_points) == 0:
+        return make_response(message("There are no fixed points for this system!"))
 
     # respond with the results-of-computation page
     return make_response(
