@@ -1,8 +1,8 @@
 from typing import Dict, List
 
-from _util import message
 from flask import make_response, render_template
 
+from steady_cell_phenotype._util import message
 from steady_cell_phenotype.equation_system import EquationSystem
 
 
