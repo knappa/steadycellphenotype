@@ -30,6 +30,11 @@
         <p>Once you have entered the model, click on the submit button. On the backend, we do a quick
             check to make sure each line is of the form var=formula, but do no other checking.</p>
         <p>For this example, we will use a very simple model with two variables, A and B.</p>
+        <p>
+          Note: You can also upload the model from a text file. File should either be in the above
+          format or be a ternary SBML-qual model. Entered models can downloaded using the button in
+          the lower left.
+        </p>
     </article>
 </section>
 
@@ -60,15 +65,17 @@
                         cycle or fixed point found. We <em>do not guarantee</em> that all cycles or fixed points
                         will be found.
                     </li>
-                    <li><b>Find all fixed points.</b> In which we use computer algebra software to find all
-                        fixed points. Here we <em>guarantee</em> that all fixed points will be found. However,
-                        this algorithm will not find cycles and does not give any information on the size of the
-                        basin of attraction.
+                    <li>
+                      <b>Find all fixed points.</b> In which we use an algorithm to find all fixed
+                      points. Here we <em>guarantee</em> that all fixed points will be
+                      found. However, this algorithm will not find cycles and does not give any
+                      information on the size of the basin of attraction.
                     </li>
                 </ol>
             </li>
         </ul>
-        Once you have made your choices, click on the submit button.
+        Once you have made your choices, click on the submit button.  We also support loading and
+        saving of model configurations in a JSON formatted file.
         </p>
         <p>The computation will hopefully be quick, but is not instantaneous. Expect a short wait; the
             next page will be rendered once the server is finished simulating. </p>
