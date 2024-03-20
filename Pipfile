@@ -21,7 +21,7 @@ scipy = "*"
 setuptools-scm = "*"
 
 [dev-packages]
-black = "==21.12b0"
+black = "==24.3.0"
 
 [requires]
 python_version = "3.9"
